@@ -19,7 +19,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           # pick one Go version to check format
-          go-version: '1.18'
+          go-version: '1.24'
       - name: Run go fmt
         run: |
           go version
@@ -35,7 +35,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           # pick one Go version for linting
-          go-version: '1.18'
+          go-version: '1.24'
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v8
         with:
@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go: [ '1.18', 'oldstable', 'stable' ]
+        go: [ '1.24', 'oldstable', 'stable' ]
     name: Run tests with Go ${{ matrix.go }}
     steps:
       - name: Checkout code
