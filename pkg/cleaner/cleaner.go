@@ -106,7 +106,7 @@ func (dc *DocumentCleaner) Clean(node *goquery.Selection) *goquery.Selection {
 
 // CleanWhitespace removes tabs, whitespace lines from text and adds double newlines to paragraphs
 func (dc *DocumentCleaner) CleanWhitespace(text string) string {
-	text = strings.Replace(text, "\t", " ", -1)
+	text = strings.ReplaceAll(text, "\t", " ")
 	lines := strings.Split(text, "\n")
 	var cleaned []string
 	for _, line := range lines {

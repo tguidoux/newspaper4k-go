@@ -31,7 +31,7 @@ func TestGoVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%s failed: cannot open <go.mod> file, error %s", testName, err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	var goVersionMod *semver.Semver
 	fileScanner := bufio.NewScanner(file)

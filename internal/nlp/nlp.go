@@ -53,7 +53,7 @@ func NewStopWords(language string) (*StopWords, error) {
 	var gseSeg *gse.Segmenter
 	if language == "zh" {
 		gseSeg = new(gse.Segmenter)
-		gseSeg.LoadDict()
+		_ = gseSeg.LoadDict()
 	}
 
 	return &StopWords{

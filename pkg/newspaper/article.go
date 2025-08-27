@@ -98,7 +98,7 @@ func (a *Article) Download() *Article {
 			a.DownloadExceptionMsg = err.Error()
 			return a
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		// Read HTML
 		htmlBytes, err := io.ReadAll(resp.Body)

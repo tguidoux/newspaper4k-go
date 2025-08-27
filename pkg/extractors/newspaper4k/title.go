@@ -104,13 +104,12 @@ func (te *TitleExtractor) Parse(a *newspaper.Article) error {
 		for _, delimiter := range delimiters {
 			if strings.Contains(titleText, delimiter) {
 				titleText = te.splitTitle(titleText, delimiter, titleTextH1)
-				usedDelimiter = true
 				break
 			}
 		}
 	}
 
-	title := strings.Replace(titleText, MOTLEY_REPLACEMENT[0], MOTLEY_REPLACEMENT[1], -1)
+	title := strings.ReplaceAll(titleText, MOTLEY_REPLACEMENT[0], MOTLEY_REPLACEMENT[1])
 
 	// prefer h1 if very similar
 	filterTitle := filterRegex.ReplaceAllString(strings.ToLower(title), "")
@@ -198,5 +197,5 @@ func (te *TitleExtractor) splitTitle(title, delimiter, hint string) string {
 	}
 
 	result := pieces[largestIndex]
-	return strings.Replace(result, TITLE_REPLACEMENTS[0], TITLE_REPLACEMENTS[1], -1)
+	return strings.ReplaceAll(result, TITLE_REPLACEMENTS[0], TITLE_REPLACEMENTS[1])
 }

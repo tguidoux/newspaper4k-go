@@ -184,11 +184,6 @@ func (me *MetadataExtractor) getMetadata(doc *goquery.Document) map[string]strin
 			key = strings.TrimSpace(key)
 			value = strings.TrimSpace(value)
 
-			// Handle numeric values
-			if regexp.MustCompile(`^\d+$`).MatchString(value) {
-				// Keep as string for now
-			}
-
 			data[key] = value
 		}
 	})

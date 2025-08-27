@@ -154,13 +154,13 @@ func formatIOCsTable(iocs []*IOC) string {
 	lastType = -1
 	for _, ioc := range iocs {
 		if ioc.Type != lastType {
-			fmt.Fprintln(w, "# "+ioc.Type.String())
+			_, _ = fmt.Fprintln(w, "# "+ioc.Type.String())
 			lastType = ioc.Type
 		}
-		fmt.Fprintln(w, ioc.IOC+"\t"+ioc.Type.String())
+		_, _ = fmt.Fprintln(w, ioc.IOC+"\t"+ioc.Type.String())
 	}
 
-	w.Flush()
+	_ = w.Flush()
 	return ret.String()
 }
 
