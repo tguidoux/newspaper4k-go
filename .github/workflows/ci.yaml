@@ -63,7 +63,7 @@ jobs:
         run: |
           go version
           cd module_test && \
-            go test -v -timeout 9999s -count 1 -p 1 -cover -coverprofile ../coverage_test_package.txt -coverpkg=github.com/btnguyen2k/mymodule ./ && \
+            go test -v -timeout 9999s -count 1 -p 1 -cover -coverprofile ../coverage_test_package.txt -coverpkg=github.com/tguidoux/newspaper4k-go ./ && \
             cd ..
       - name: Codecov
         uses: codecov/codecov-action@v5

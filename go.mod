@@ -1,4 +1,4 @@
-module github.com/btnguyen2k/mymodule
+module github.com/tguidoux/newspaper4k-go
 
 go 1.18
 

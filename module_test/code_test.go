@@ -1,9 +1,10 @@
 package module_test
 
 import (
-	"github.com/btnguyen2k/mymodule"
 	"reflect"
 	"testing"
+
+	mymodule "github.com/tguidoux/newspaper4k-go"
 )
 
 // sample tests
