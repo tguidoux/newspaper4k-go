@@ -1,7 +1,6 @@
 name: "CodeQL config"
 
-paths-ignore:
-  - module_test
+# paths-ignore:
 
 queries:
   - uses: security-and-quality
