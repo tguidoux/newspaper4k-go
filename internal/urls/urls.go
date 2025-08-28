@@ -3,6 +3,7 @@ package urls
 import (
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -107,159 +108,55 @@ func joinURL(baseURL, relativeURL string) string {
 }
 
 // ValidURL checks if a URL is a valid news article URL
-func ValidURL(urlStr string, test bool) bool {
-	// If testing, preprocess the URL
-	if test {
-		urlStr = PrepareURL(urlStr, "")
-	}
+func ValidURL(urlStr string) bool {
+	_, err := url.Parse(urlStr)
+	return err == nil
+}
 
-	// Check minimum length (11 chars is shortest valid URL, e.g., http://x.co)
-	if urlStr == "" || len(urlStr) < 11 {
-		return false
-	}
-
-	// Check for mailto or missing http/https
-	if strings.Contains(urlStr, "mailto:") ||
-		(!strings.Contains(urlStr, "http://") && !strings.Contains(urlStr, "https://")) {
-		return false
-	}
-
-	parsedURL, err := url.Parse(urlStr)
+func ValidArticleURL(urlStr string) bool {
+	url, err := url.Parse(urlStr)
 	if err != nil {
 		return false
 	}
 
-	path := parsedURL.Path
-
-	// Input URL is not in valid form
-	if !strings.HasPrefix(path, "/") {
-		return false
-	}
-
-	// Remove trailing slash
-	path = strings.TrimSuffix(path, "/")
-
-	// Split path into chunks
-	pathChunks := strings.Split(path, "/")
-	var filteredChunks []string
-	for _, chunk := range pathChunks {
-		if chunk != "" {
-			filteredChunks = append(filteredChunks, chunk)
-		}
-	}
-
-	// Extract file type
-	if len(filteredChunks) > 0 {
-		fileType := URLToFileType(urlStr)
-		if fileType != "" && !contains(allowedTypes, fileType) {
+	// Check for bad domains
+	for _, badDomain := range badDomains {
+		if strings.Contains(url.Host, badDomain) {
 			return false
 		}
+	}
 
-		lastChunkParts := strings.Split(filteredChunks[len(filteredChunks)-1], ".")
-		if len(lastChunkParts) > 1 {
-			filteredChunks[len(filteredChunks)-1] = lastChunkParts[len(lastChunkParts)-2]
+	// Check for bad path chunks
+	pathChunks := strings.Split(url.Path, "/")
+	for _, chunk := range pathChunks {
+		for _, badChunk := range badChunks {
+			if strings.EqualFold(chunk, badChunk) {
+				return false
+			}
 		}
 	}
 
-	// Remove "index" chunks
-	for i := len(filteredChunks) - 1; i >= 0; i-- {
-		if filteredChunks[i] == "index" {
-			filteredChunks = append(filteredChunks[:i], filteredChunks[i+1:]...)
-		}
-	}
-
-	// Extract TLD data (simplified version)
-	tldData := extractTLD(urlStr)
-	subdomain := tldData["subdomain"]
-	tld := strings.ToLower(tldData["domain"])
-
-	urlSlug := ""
-	if len(filteredChunks) > 0 {
-		urlSlug = filteredChunks[len(filteredChunks)-1]
-	}
-
-	// Check bad domains
-	if contains(badDomains, tld) {
-		return false
-	}
-
-	dashCount := strings.Count(urlSlug, "-")
-	underscoreCount := strings.Count(urlSlug, "_")
-
-	// Check for news slug pattern
-	if urlSlug != "" && (dashCount > 4 || underscoreCount > 4) {
-		var parts []string
-
-		if dashCount >= underscoreCount {
-			parts = strings.Split(urlSlug, "-")
-		} else {
-			parts = strings.Split(urlSlug, "_")
-		}
-
-		// Check if TLD is not in the slug parts
-		tldInParts := false
-		for _, part := range parts {
-			if strings.ToLower(part) == tld {
-				tldInParts = true
+	// Check for good path keywords
+	goodPathFound := false
+	for _, chunk := range pathChunks {
+		for _, goodPath := range goodPaths {
+			if strings.EqualFold(chunk, goodPath) {
+				goodPathFound = true
 				break
 			}
 		}
-
-		if !tldInParts {
-			return true
+		if goodPathFound {
+			break
 		}
 	}
 
-	// Must have at least 2 path chunks
-	if len(filteredChunks) <= 1 {
-		return false
+	// Check for date patterns in the URL
+	dateMatch := dateRegex.FindString(url.Path)
+	if dateMatch != "" {
+		goodPathFound = true
 	}
 
-	// Check for bad chunks in path or subdomain
-	for _, badChunk := range badChunks {
-		if contains(filteredChunks, badChunk) || badChunk == subdomain {
-			return false
-		}
-	}
-
-	// Check for date pattern
-	if dateRegex.MatchString(urlStr) {
-		return true
-	}
-
-	// Check for numeric ID patterns
-	if len(filteredChunks) >= 2 && len(filteredChunks) <= 3 {
-		lastChunk := filteredChunks[len(filteredChunks)-1]
-		if matched, _ := regexp.MatchString(`\d{3,}$`, lastChunk); matched {
-			return true
-		}
-
-		if len(filteredChunks) == 3 {
-			middleChunk := filteredChunks[1]
-			if matched, _ := regexp.MatchString(`\d{3,}$`, middleChunk); matched {
-				return true
-			}
-		}
-	}
-
-	// Check for good paths
-	for _, goodPath := range goodPaths {
-		for _, chunk := range filteredChunks {
-			if strings.EqualFold(chunk, goodPath) {
-				return true
-			}
-		}
-	}
-
-	// If URL has an allowed file type and passes basic checks, consider it valid
-	if len(filteredChunks) >= 2 {
-		fileType := URLToFileType(urlStr)
-		if fileType != "" && contains(allowedTypes, fileType) {
-			return true
-		}
-	}
-
-	return false
+	return goodPathFound
 }
 
 // URLToFileType extracts the file type from a URL
@@ -286,7 +183,7 @@ func URLToFileType(absURL string) string {
 	fileType := parts[len(parts)-1]
 
 	// Assume file extension is maximum 5 characters long
-	if len(fileType) <= 5 || contains(allowedTypes, strings.ToLower(fileType)) {
+	if len(fileType) <= 5 || slices.Contains(allowedTypes, strings.ToLower(fileType)) {
 		return strings.ToLower(fileType)
 	}
 
@@ -335,37 +232,27 @@ func URLJoinIfValid(baseURL, relativeURL string) string {
 	return result
 }
 
-// Helper functions
-
-// contains checks if a slice contains a string
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
+type TLDData struct {
+	Domain    string
+	Subdomain string
 }
 
-// extractTLD extracts TLD information from a URL (simplified version)
-func extractTLD(urlStr string) map[string]string {
+// ExtractTLD extracts TLD information from a URL (simplified version)
+func ExtractTLD(urlStr string) TLDData {
 	parsedURL, err := url.Parse(urlStr)
 	if err != nil {
-		return map[string]string{"domain": "", "subdomain": ""}
+		return TLDData{}
 	}
 
 	host := parsedURL.Host
 	parts := strings.Split(host, ".")
 
-	result := map[string]string{
-		"domain":    "",
-		"subdomain": "",
-	}
+	result := TLDData{}
 
 	if len(parts) >= 2 {
-		result["domain"] = parts[len(parts)-2]
+		result.Domain = parts[len(parts)-2]
 		if len(parts) >= 3 {
-			result["subdomain"] = strings.Join(parts[:len(parts)-2], ".")
+			result.Subdomain = strings.Join(parts[:len(parts)-2], ".")
 		}
 	}
 

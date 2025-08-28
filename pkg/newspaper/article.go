@@ -11,6 +11,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/tguidoux/newspaper4k-go/internal/nlp"
 	"github.com/tguidoux/newspaper4k-go/internal/parsers"
+	"github.com/tguidoux/newspaper4k-go/internal/urls"
 	"github.com/tguidoux/newspaper4k-go/pkg/cleaner"
 	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
 	"golang.org/x/text/language"
@@ -583,7 +584,7 @@ func (a *Article) ThrowIfNotParsedVerbose() error {
 // IsValidURL checks if the URL is valid.
 func (a *Article) IsValidURL() bool {
 	// Implement URL validation
-	return strings.HasPrefix(a.URL, "http")
+	return urls.ValidURL(a.URL)
 }
 
 // IsValidBody checks if the article body is valid.
