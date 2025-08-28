@@ -72,7 +72,11 @@ func NewArticleFromRequest(req newspaper.ParseRequest) (*newspaper.Article, erro
 // NewArticle constructs the article class. Will not download or parse the article.
 func NewArticle(url string) (*newspaper.Article, error) {
 	// Set source URL if not provided
-	sourceURL := fmt.Sprintf("%s://%s", urls.GetScheme(url), urls.GetDomain(url))
+	parsedURL, err := urls.Parse(url)
+	if err != nil {
+		return nil, fmt.Errorf("input url bad format: %w", err)
+	}
+	sourceURL := fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Domain)
 	preparedURL := urls.PrepareURL(url, sourceURL)
 
 	if sourceURL == "" {
@@ -96,7 +100,7 @@ func NewArticle(url string) (*newspaper.Article, error) {
 		Tags:          map[string]string{},
 		Authors:       []string{},
 		MetaData:      map[string]string{},
-		Categories:    []string{},
+		Categories:    []*urls.URL{},
 		History:       []string{},
 	}
 

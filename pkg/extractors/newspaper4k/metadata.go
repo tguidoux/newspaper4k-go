@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/tguidoux/newspaper4k-go/internal/helpers"
 	"github.com/tguidoux/newspaper4k-go/internal/parsers"
 	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
 	"github.com/tguidoux/newspaper4k-go/pkg/newspaper"
@@ -25,17 +26,9 @@ func NewMetadataExtractor(config *configuration.Configuration) *MetadataExtracto
 
 // Parse extracts metadata from the article and updates the article in-place
 func (me *MetadataExtractor) Parse(a *newspaper.Article) error {
-	var doc *goquery.Document
-	var err error
-
-	// Use Doc field if available, otherwise parse HTML using parser
-	if a.Doc != nil {
-		doc = a.Doc
-	} else {
-		doc, err = parsers.FromString(a.HTML)
-		if err != nil {
-			return err
-		}
+	doc, err := helpers.GetDocFromArticle(a)
+	if err != nil {
+		return err
 	}
 
 	// Extract metadata
@@ -56,7 +49,7 @@ func (me *MetadataExtractor) getMetaLanguage(doc *goquery.Document) string {
 			return ""
 		}
 		s = s[:2]
-		matched, _ := regexp.MatchString(RE_LANG, s)
+		matched, _ := regexp.MatchString(newspaper.RE_LANG, s)
 		if matched {
 			return strings.ToLower(s)
 		}
@@ -71,7 +64,7 @@ func (me *MetadataExtractor) getMetaLanguage(doc *goquery.Document) string {
 	}
 
 	// Check meta language tags
-	for _, elem := range META_LANGUAGE_TAGS {
+	for _, elem := range newspaper.META_LANGUAGE_TAGS {
 		tag := elem["tag"]
 		attr := elem["attr"]
 		value := elem["value"]

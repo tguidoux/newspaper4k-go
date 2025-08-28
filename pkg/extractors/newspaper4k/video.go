@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/tguidoux/newspaper4k-go/internal/helpers"
 	"github.com/tguidoux/newspaper4k-go/internal/parsers"
 	"github.com/tguidoux/newspaper4k-go/internal/urls"
 	"github.com/tguidoux/newspaper4k-go/pkg/newspaper"
@@ -20,17 +21,9 @@ func NewVideoExtractor() *VideoExtractor {
 
 // Parse extracts videos from the article
 func (ve *VideoExtractor) Parse(a *newspaper.Article) error {
-	var doc *goquery.Document
-	var err error
-
-	// Use Doc field if available, otherwise parse HTML using parser
-	if a.Doc != nil {
-		doc = a.Doc
-	} else {
-		doc, err = parsers.FromString(a.HTML)
-		if err != nil {
-			return err
-		}
+	doc, err := helpers.GetDocFromArticle(a)
+	if err != nil {
+		return err
 	}
 
 	videos := ve.getVideos(doc, a.URL)
@@ -144,7 +137,7 @@ func (ve *VideoExtractor) getProvider(videoURL string) string {
 	host = strings.TrimPrefix(host, "www.")
 
 	// Check for known providers
-	for _, provider := range VIDEO_PROVIDERS {
+	for _, provider := range newspaper.VIDEO_PROVIDERS {
 		if strings.Contains(host, provider) {
 			return provider
 		}
@@ -155,7 +148,7 @@ func (ve *VideoExtractor) getProvider(videoURL string) string {
 
 // isVideoProvider checks if the provider is a known video provider
 func (ve *VideoExtractor) isVideoProvider(provider string) bool {
-	for _, p := range VIDEO_PROVIDERS {
+	for _, p := range newspaper.VIDEO_PROVIDERS {
 		if provider == p {
 			return true
 		}

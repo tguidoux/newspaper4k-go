@@ -1,4 +1,4 @@
-package newspaper4k
+package newspaper
 
 // MOTLEY_REPLACEMENT is used for cleaning title text
 var MOTLEY_REPLACEMENT = []string{"&#65533;", ""}
@@ -326,4 +326,32 @@ var CATEGORY_URL_PREFIXES = []string{
 	"sections",
 	"cat",
 	"cats",
+}
+
+var COMMON_FEED_SUFFIXES = []string{
+	"/atom.xml",
+	"/blog?format=rss",
+	"/blog/feed",
+	"/blog/rss",
+	"/blog/rss.xml",
+	"/blogs/news.atom",
+	"/blogs/news.rss",
+	"/comments/feed/",
+	"/feed",
+	"/feed/",
+	"/feed.xml",
+	"/feed/@username",
+	"/feed/publication-name",
+	"/feeds/latest.xml",
+	"/feeds/posts/default",
+	"/feeds/posts/default?alt=rss",
+	"/new/.rss",
+	"/news/feed",
+	"/news/feed.xml",
+	"/news/rss",
+	"/news/rss.xml",
+	"/rss",
+	"/rss/",
+	"/rss.xml",
+	"/rss.xml?format=xml",
 }

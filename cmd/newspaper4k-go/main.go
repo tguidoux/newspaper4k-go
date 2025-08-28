@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/tguidoux/newspaper4k-go/internal/helpers"
 	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
 	"github.com/tguidoux/newspaper4k-go/pkg/newspaper4k"
 	"github.com/tguidoux/newspaper4k-go/pkg/source"
@@ -154,54 +155,14 @@ func demonstrateArticleUsage() {
 	}
 
 	// Display results
-	fmt.Println("\n=== PARSED ARTICLE RESULTS ===")
-	fmt.Printf("Title: %s\n", art.Title)
-	fmt.Printf("Source URL: %s\n", art.SourceURL)
-	fmt.Printf("Is Parsed: %t\n", art.IsParsed)
-	fmt.Printf("Authors: %v\n", art.Authors)
-	fmt.Printf("Meta Description: %s\n", art.MetaDescription)
-	fmt.Printf("Meta Language: %s\n", art.MetaLang)
-	fmt.Printf("Meta Site Name: %s\n", art.MetaSiteName)
-	fmt.Printf("Meta Keywords: %v\n", art.MetaKeywords)
-	fmt.Printf("Canonical Link: %s\n", art.CanonicalLink)
-	fmt.Printf("Categories: %v\n", art.Categories)
-	fmt.Printf("Top Image: %s\n", art.TopImage)
-	fmt.Printf("Meta Image: %s\n", art.MetaImg)
-	fmt.Printf("Images: %v\n", art.Images)
-	fmt.Printf("Favicon: %s\n", art.MetaFavicon)
-	fmt.Printf("Movies: %v\n", art.Movies)
-	fmt.Printf("Pub Date: %v\n", art.PublishDate)
-	fmt.Printf("Language: %v\n", art.Language)
-	fmt.Printf("Text: %v\n", art.Text)
-	fmt.Printf("Keywords: %v\n", art.GetTopKeywordsList())
-	fmt.Printf("Summary: %s\n", art.GetSummary())
+	helpers.PrintArticleResults(art)
 
 	art2, err := newspaper4k.NewArticleFromHTML(testHTML)
 	if err != nil {
 		fmt.Printf("Error fetching article: %v\n", err)
 		return
 	}
-	fmt.Println("\n=== PARSED ARTICLE RESULTS ===")
-	fmt.Printf("Title: %s\n", art2.Title)
-	fmt.Printf("Source URL: %s\n", art2.SourceURL)
-	fmt.Printf("Is Parsed: %t\n", art2.IsParsed)
-	fmt.Printf("Authors: %v\n", art2.Authors)
-	fmt.Printf("Meta Description: %s\n", art2.MetaDescription)
-	fmt.Printf("Meta Language: %s\n", art2.MetaLang)
-	fmt.Printf("Meta Site Name: %s\n", art2.MetaSiteName)
-	fmt.Printf("Meta Keywords: %v\n", art2.MetaKeywords)
-	fmt.Printf("Canonical Link: %s\n", art2.CanonicalLink)
-	fmt.Printf("Categories: %v\n", art2.Categories)
-	fmt.Printf("Top Image: %s\n", art2.TopImage)
-	fmt.Printf("Meta Image: %s\n", art2.MetaImg)
-	fmt.Printf("Images: %v\n", art2.Images)
-	fmt.Printf("Favicon: %s\n", art2.MetaFavicon)
-	fmt.Printf("Movies: %v\n", art2.Movies)
-	fmt.Printf("Pub Date: %v\n", art2.PublishDate)
-	fmt.Printf("Language: %v\n", art2.Language)
-	fmt.Printf("Text: %v\n", art2.Text)
-	fmt.Printf("Keywords: %v\n", art2.GetTopKeywordsList())
-	fmt.Printf("Summary: %s\n", art2.GetSummary())
+	helpers.PrintArticleResults(art2)
 
 	fmt.Println("\nDemo completed successfully!")
 }
@@ -215,72 +176,82 @@ func demonstrateSourceUsage() {
 	config := configuration.NewConfiguration()
 
 	// Example HTML content for testing
-	mockHTML := `
-	<!DOCTYPE html>
-	<html>
-	<head>
-		<title>Hacker News</title>
-		<meta name="description" content="Hacker News is a social news website focusing on computer science and entrepreneurship">
-	</head>
-	<body>
-		<header>
-			<nav>
-				<a href="/newest">New</a>
-				<a href="/past">Past</a>
-				<a href="/comments">Comments</a>
-				<a href="/ask">Ask</a>
-				<a href="/show">Show</a>
-				<a href="/jobs">Jobs</a>
-				<a href="/submit">Submit</a>
-			</nav>
-		</header>
-		<main>
-			<table>
-				<tr>
-					<td><a href="/item?id=1">First Story Title</a></td>
-					<td><a href="/item?id=1">(42 comments)</a></td>
-				</tr>
-				<tr>
-					<td><a href="/item?id=2">Second Story Title</a></td>
-					<td><a href="/item?id=2">(15 comments)</a></td>
-				</tr>
-				<tr>
-					<td><a href="/item?id=3">Third Story Title</a></td>
-					<td><a href="/item?id=3">(8 comments)</a></td>
-				</tr>
-			</table>
-		</main>
-	</body>
-	</html>`
+	//	mockHTML := `
+	//	<!DOCTYPE html>
+	//	<html>
+	//	<head>
+	//		<title>Hacker News</title>
+	//		<meta name="description" content="Hacker News is a social news website focusing on computer science and entrepreneurship">
+	//	</head>
+	//	<body>
+	//		<header>
+	//			<nav>
+	//				<a href="/newest">New</a>
+	//				<a href="/past">Past</a>
+	//				<a href="/comments">Comments</a>
+	//				<a href="/ask">Ask</a>
+	//				<a href="/show">Show</a>
+	//				<a href="/jobs">Jobs</a>
+	//				<a href="/submit">Submit</a>
+	//			</nav>
+	//		</header>
+	//		<main>
+	//			<table>
+	//				<tr>
+	//					<td><a href="/item?id=1">First Story Title</a></td>
+	//					<td><a href="/item?id=1">(42 comments)</a></td>
+	//				</tr>
+	//				<tr>
+	//					<td><a href="/item?id=2">Second Story Title</a></td>
+	//					<td><a href="/item?id=2">(15 comments)</a></td>
+	//				</tr>
+	//				<tr>
+	//					<td><a href="/item?id=3">Third Story Title</a></td>
+	//					<td><a href="/item?id=3">(8 comments)</a></td>
+	//				</tr>
+	//			</table>
+	//		</main>
+	//	</body>
+	//	</html>`
 
 	// Example 1: Create a source with mock HTML
 	fmt.Printf("\n1. Creating source with mock HTML content\n")
-	src, err := source.NewDefaultSource(source.SourceRequest{URL: "https://news.ycombinator.com", Config: config})
+	src, err := source.NewDefaultSource(source.SourceRequest{URL: "https://edition.cnn.com/", Config: *config})
 	if err != nil {
 		fmt.Printf("Error creating source: %v\n", err)
 		return
 	}
 
 	fmt.Printf("   Source created successfully!\n")
-	fmt.Printf("   Brand: %s\n", src.Brand)
-	fmt.Printf("   Domain: %s\n", src.Domain)
-	fmt.Printf("   Scheme: %s\n", src.Scheme)
+	fmt.Printf("   Domain: %s\n", src.ParsedURL.Domain)
+	fmt.Printf("   Scheme: %s\n", src.ParsedURL.Scheme)
+	fmt.Printf("   Subdomain: %s\n", src.ParsedURL.Subdomain)
+	fmt.Printf("   TLD: %s\n", src.ParsedURL.TLD)
 
 	// Build the source with mock HTML
-	fmt.Printf("\n2. Building source with mock HTML (no network requests)...\n")
-	src.Build(mockHTML, false, false) // inputHTML=mockHTML, onlyHomepage=false, onlyInPath=false
+	fmt.Printf("\n2. Building source...\n")
+	src.Build() // inputHTML=mockHTML, onlyHomepage=false, onlyInPath=false
 
 	fmt.Printf("   Download status: %t\n", src.IsDownloaded)
 	fmt.Printf("   Parse status: %t\n", src.IsParsed)
 	fmt.Printf("   Categories found: %d\n", len(src.Categories))
 	fmt.Printf("   Feeds found: %d\n", len(src.Feeds))
+	fmt.Printf("   Description: %s\n", src.Description)
 	fmt.Printf("   Articles generated: %d\n", src.Size())
 
 	// Show some categories
 	if len(src.Categories) > 0 {
 		fmt.Printf("\n3. Sample categories:\n")
-		for i, cat := range src.Categories[:min(5, len(src.Categories))] {
+		for i, cat := range src.Categories {
 			fmt.Printf("   %d. %s\n", i+1, cat.URL)
+		}
+	}
+
+	// Show some feeds
+	if len(src.Feeds) > 0 {
+		fmt.Printf("\n3. Sample feeds:\n")
+		for i, feed := range src.Feeds {
+			fmt.Printf("   %d. %s\n", i+1, feed.URL)
 		}
 	}
 
@@ -288,13 +259,13 @@ func demonstrateSourceUsage() {
 	if src.Size() > 0 {
 		fmt.Printf("\n4. Sample articles:\n")
 		articles := src.ArticleURLs()
-		for i, url := range articles[:min(5, len(articles))] {
+		for i, url := range articles[:helpers.Min(5, len(articles))] {
 			fmt.Printf("   %d. %s\n", i+1, url)
 		}
 
 		// Show article details without downloading
 		fmt.Printf("\n5. Article details (from mock data):\n")
-		for i, article := range src.Articles[:min(3, len(src.Articles))] {
+		for i, article := range src.Articles[:helpers.Min(3, len(src.Articles))] {
 			fmt.Printf("   %d. Title: %s\n", i+1, article.Title)
 			fmt.Printf("      URL: %s\n", article.URL)
 			fmt.Printf("      Source URL: %s\n", article.SourceURL)
@@ -302,23 +273,15 @@ func demonstrateSourceUsage() {
 	}
 
 	// Example 2: Using only homepage parsing
-	fmt.Printf("\n\n6. Example with only homepage parsing:\n")
-	src2, err := source.NewDefaultSource(source.SourceRequest{URL: "https://news.ycombinator.com", Config: config})
-	if err != nil {
-		fmt.Printf("Error creating source: %v\n", err)
-		return
-	}
-
-	src2.Build(mockHTML, true, false) // onlyHomepage=true
-	fmt.Printf("   Homepage-only parsing - Articles found: %d\n", src2.Size())
+	//	fmt.Printf("\n\n6. Example with only homepage parsing:\n")
+	//	src2, err := source.NewDefaultSource(source.SourceRequest{URL: "https://news.ycombinator.com", Config: *config})
+	//	if err != nil {
+	//		fmt.Printf("Error creating source: %v\n", err)
+	//		return
+	//	}
+	//
+	//	src2.Build(mockHTML, true, false) // onlyHomepage=true
+	//	fmt.Printf("   Homepage-only parsing - Articles found: %d\n", src2.Size())
 
 	fmt.Printf("\nSource demo completed!\n")
-}
-
-// min returns the minimum of two integers
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

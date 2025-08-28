@@ -59,7 +59,7 @@ type Article struct {
 	MetaSiteName         string               // Website's name
 	MetaData             map[string]string    // Additional meta data from meta tags
 	CanonicalLink        string               // Canonical URL for the article
-	Categories           []string             // Extracted category URLs from the source
+	Categories           []*urls.URL          // Extracted category URLs from the source
 	TopNode              *goquery.Selection   // Top node of the original DOM tree (HTML element)
 	Doc                  *goquery.Document    // Full DOM of the downloaded HTML
 	CleanDoc             *goquery.Document    // Cleaned version of the DOM tree
@@ -74,6 +74,8 @@ type ParseRequest struct {
 	Extractors    []Extractor
 	InputHTML     string
 }
+
+// newspaper.Article does not satisfy comparablecompilerInvalidTypeArg
 
 // Build builds a lone article from a URL. Calls Download(), Parse(), and NLP() in succession.
 func (a *Article) Build(extractors []Extractor) {
@@ -584,7 +586,7 @@ func (a *Article) ThrowIfNotParsedVerbose() error {
 // IsValidURL checks if the URL is valid.
 func (a *Article) IsValidURL() bool {
 	// Implement URL validation
-	return urls.ValidURL(a.URL)
+	return urls.ValidURL(a.URL, false)
 }
 
 // IsValidBody checks if the article body is valid.

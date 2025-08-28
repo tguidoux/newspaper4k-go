@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/tguidoux/newspaper4k-go/internal/helpers"
 	"github.com/tguidoux/newspaper4k-go/internal/parsers"
 	"github.com/tguidoux/newspaper4k-go/internal/urls"
 	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
@@ -38,17 +39,9 @@ func (ie *ImageExtractor) Parse(a *newspaper.Article) error {
 	ie.images = []string{}
 	ie.favicon = ""
 
-	var doc *goquery.Document
-	var err error
-
-	// Use Doc field if available, otherwise parse HTML using parser
-	if a.Doc != nil {
-		doc = a.Doc
-	} else {
-		doc, err = parsers.FromString(a.HTML)
-		if err != nil {
-			return err
-		}
+	doc, err := helpers.GetDocFromArticle(a)
+	if err != nil {
+		return err
 	}
 
 	ie.parse(doc, a.TopNode, a.URL)
@@ -94,7 +87,7 @@ func (ie *ImageExtractor) getFavicon(doc *goquery.Document) string {
 func (ie *ImageExtractor) getMetaImage(doc *goquery.Document) string {
 	candidates := []ImageCandidate{}
 
-	for _, elem := range META_IMAGE_TAGS {
+	for _, elem := range newspaper.META_IMAGE_TAGS {
 		var items []*goquery.Selection
 
 		if strings.Contains(elem.Value, "|") {

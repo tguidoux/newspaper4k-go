@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/tguidoux/newspaper4k-go/internal/helpers"
 	"github.com/tguidoux/newspaper4k-go/internal/nlp"
 	"github.com/tguidoux/newspaper4k-go/internal/parsers"
 	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
@@ -40,16 +41,9 @@ func NewBodyExtractor(config *configuration.Configuration) *BodyExtractor {
 
 // Parse computes the top node and augmented top node and updates the Article
 func (be *BodyExtractor) Parse(a *newspaper.Article) error {
-	var doc *goquery.Document
-	var err error
-
-	if a.Doc != nil {
-		doc = a.Doc
-	} else {
-		doc, err = parsers.FromString(a.HTML)
-		if err != nil {
-			return err
-		}
+	doc, err := helpers.GetDocFromArticle(a)
+	if err != nil {
+		return err
 	}
 
 	// initialize stopwords
@@ -307,7 +301,7 @@ func (be *BodyExtractor) boostHighlyLikelyNodes(doc *goquery.Document) {
 // isHighlyLikely checks tag patterns against ARTICLE_BODY_TAGS
 func (be *BodyExtractor) isHighlyLikely(node *goquery.Selection) float64 {
 	// helper to match tag dict
-	match := func(node *goquery.Selection, tag ArticleBodyTag) bool {
+	match := func(node *goquery.Selection, tag newspaper.ArticleBodyTag) bool {
 		if node.Length() == 0 {
 			return false
 		}
@@ -336,7 +330,7 @@ func (be *BodyExtractor) isHighlyLikely(node *goquery.Selection) float64 {
 	}
 
 	best := 0
-	for _, t := range ARTICLE_BODY_TAGS {
+	for _, t := range newspaper.ARTICLE_BODY_TAGS {
 		if match(node, t) {
 			if t.ScoreBoost > best {
 				best = t.ScoreBoost

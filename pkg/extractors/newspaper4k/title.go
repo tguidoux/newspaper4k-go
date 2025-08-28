@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/tguidoux/newspaper4k-go/internal/helpers"
 	"github.com/tguidoux/newspaper4k-go/internal/languages"
 	"github.com/tguidoux/newspaper4k-go/internal/parsers"
 	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
@@ -31,17 +32,9 @@ func NewTitleExtractor(config *configuration.Configuration) *TitleExtractor {
 func (te *TitleExtractor) Parse(a *newspaper.Article) error {
 	te.title = ""
 
-	var doc *goquery.Document
-	var err error
-
-	// Use Doc field if available, otherwise parse HTML using parser
-	if a.Doc != nil {
-		doc = a.Doc
-	} else {
-		doc, err = parsers.FromString(a.HTML)
-		if err != nil {
-			return err
-		}
+	doc, err := helpers.GetDocFromArticle(a)
+	if err != nil {
+		return err
 	}
 
 	titleElement := doc.Find("title").First()
@@ -109,7 +102,7 @@ func (te *TitleExtractor) Parse(a *newspaper.Article) error {
 		}
 	}
 
-	title := strings.ReplaceAll(titleText, MOTLEY_REPLACEMENT[0], MOTLEY_REPLACEMENT[1])
+	title := strings.ReplaceAll(titleText, newspaper.MOTLEY_REPLACEMENT[0], newspaper.MOTLEY_REPLACEMENT[1])
 
 	// prefer h1 if very similar
 	filterTitle := filterRegex.ReplaceAllString(strings.ToLower(title), "")
@@ -156,7 +149,7 @@ func (te *TitleExtractor) getTitleFromH1(doc *goquery.Document) string {
 
 // getTitleFromMeta extracts title from meta tags
 func (te *TitleExtractor) getTitleFromMeta(doc *goquery.Document) string {
-	for _, metaName := range TITLE_META_INFO {
+	for _, metaName := range newspaper.TITLE_META_INFO {
 		// Use parser's GetMetatags method
 		metaElements := parsers.GetMetatags(doc.Selection, metaName)
 		for _, metaElement := range metaElements {
@@ -197,5 +190,5 @@ func (te *TitleExtractor) splitTitle(title, delimiter, hint string) string {
 	}
 
 	result := pieces[largestIndex]
-	return strings.ReplaceAll(result, TITLE_REPLACEMENTS[0], TITLE_REPLACEMENTS[1])
+	return strings.ReplaceAll(result, newspaper.TITLE_REPLACEMENTS[0], newspaper.TITLE_REPLACEMENTS[1])
 }
