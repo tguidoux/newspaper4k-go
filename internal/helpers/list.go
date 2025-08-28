@@ -1,10 +1,7 @@
 package helpers
 
 import (
-	"fmt"
 	"strings"
-
-	"github.com/tguidoux/newspaper4k-go/pkg/newspaper"
 )
 
 // UniqueOptions configures the behavior of UniqueStrings
@@ -93,29 +90,4 @@ func UniqueStringsByKey(items []string, keyFunc func(string) string, opts Unique
 	}
 
 	return result
-}
-
-// PrintArticleResults prints the results of an article parsing to stdout
-func PrintArticleResults(art *newspaper.Article) {
-	fmt.Println("\n=== PARSED ARTICLE RESULTS ===")
-	fmt.Printf("Title: %s\n", art.Title)
-	fmt.Printf("Source URL: %s\n", art.SourceURL)
-	fmt.Printf("Is Parsed: %t\n", art.IsParsed)
-	fmt.Printf("Authors: %v\n", art.Authors)
-	fmt.Printf("Meta Description: %s\n", art.MetaDescription)
-	fmt.Printf("Meta Language: %s\n", art.MetaLang)
-	fmt.Printf("Meta Site Name: %s\n", art.MetaSiteName)
-	fmt.Printf("Meta Keywords: %v\n", art.MetaKeywords)
-	fmt.Printf("Canonical Link: %s\n", art.CanonicalLink)
-	fmt.Printf("Categories: %v\n", art.Categories)
-	fmt.Printf("Top Image: %s\n", art.TopImage)
-	fmt.Printf("Meta Image: %s\n", art.MetaImg)
-	fmt.Printf("Images: %v\n", art.Images)
-	fmt.Printf("Favicon: %s\n", art.MetaFavicon)
-	fmt.Printf("Movies: %v\n", art.Movies)
-	fmt.Printf("Pub Date: %v\n", art.PublishDate)
-	fmt.Printf("Language: %v\n", art.Language)
-	fmt.Printf("Text: %v\n", art.Text)
-	fmt.Printf("Keywords: %v\n", art.GetTopKeywordsList())
-	fmt.Printf("Summary: %s\n", art.GetSummary())
 }
