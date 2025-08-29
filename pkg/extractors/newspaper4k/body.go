@@ -9,20 +9,33 @@ import (
 	"github.com/tguidoux/newspaper4k-go/internal/nlp"
 	"github.com/tguidoux/newspaper4k-go/internal/parsers"
 	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
+	"github.com/tguidoux/newspaper4k-go/pkg/constants"
 	"github.com/tguidoux/newspaper4k-go/pkg/newspaper"
 )
 
 // scoreWeights mirrors the weights used in the original Python implementation
-var scoreWeights = map[string]float64{
-	"bottom_negativescore_nodes": 0.25,
-	"boost_score":                30,
-	"parent_node":                1.0,
-	"parent_parent_node":         0.4,
-	"node_count_threshold":       15,
-	"negative_score_threshold":   40,
-	"negative_score_boost":       5.0,
-	"boost_max_steps_from_node":  3,
-	"boost_min_stopword_count":   5,
+type scoreWeightsStruct struct {
+	bottomNegativeScoreNodes float64
+	boostScore               float64
+	parentNode               float64
+	parentParentNode         float64
+	nodeCountThreshold       int
+	negativeScoreThreshold   float64
+	negativeScoreBoost       float64
+	boostMaxStepsFromNode    int
+	boostMinStopwordCount    int
+}
+
+var scoreWeights = scoreWeightsStruct{
+	bottomNegativeScoreNodes: 0.25,
+	boostScore:               30,
+	parentNode:               1.0,
+	parentParentNode:         0.4,
+	nodeCountThreshold:       15,
+	negativeScoreThreshold:   40,
+	negativeScoreBoost:       5.0,
+	boostMaxStepsFromNode:    3,
+	boostMinStopwordCount:    5,
 }
 
 // BodyExtractor extracts the article body/top node from a document
@@ -40,25 +53,20 @@ func NewBodyExtractor(config *configuration.Configuration) *BodyExtractor {
 
 // Parse computes the top node and augmented top node and updates the Article
 func (be *BodyExtractor) Parse(a *newspaper.Article) error {
-	var doc *goquery.Document
-	var err error
-
-	if a.Doc != nil {
-		doc = a.Doc
-	} else {
-		doc, err = parsers.FromString(a.HTML)
+	if a.Doc == nil {
+		doc, err := parsers.FromString(a.HTML)
 		if err != nil {
 			return err
 		}
+		a.Doc = doc
 	}
-
 	// initialize stopwords
 	lang := a.GetLanguage().String()
 	sw, _ := nlp.NewStopWords(lang)
 	be.stopwords = sw
 
-	be.topNode = be.calculateBestNode(doc)
-	be.topNodeComplemented = be.complementWithSiblings(doc, be.topNode)
+	be.topNode = be.calculateBestNode(a.Doc)
+	be.topNodeComplemented = be.complementWithSiblings(a.Doc, be.topNode)
 
 	// Update article
 	a.TopNode = be.topNodeComplemented
@@ -109,17 +117,17 @@ func (be *BodyExtractor) computeGravityScores(nodesWithText []*goquery.Selection
 
 	nodesCount := len(nodesWithText)
 	negativeScoring := 0.0
-	bottomNegNodes := float64(nodesCount) * scoreWeights["bottom_negativescore_nodes"]
+	bottomNegNodes := float64(nodesCount) * scoreWeights.bottomNegativeScoreNodes
 	boostDiscount := 1.0
 
 	for i, node := range nodesWithText {
 		boostScore := 0.0
 		if be.isBoostable(node) {
-			boostScore = scoreWeights["boost_score"] / boostDiscount
+			boostScore = scoreWeights.boostScore / boostDiscount
 			boostDiscount += 1.0
 		}
 
-		if nodesCount > int(scoreWeights["node_count_threshold"]) {
+		if nodesCount > scoreWeights.nodeCountThreshold {
 			distFromEnd := float64(nodesCount - i)
 			if distFromEnd <= bottomNegNodes {
 				booster := bottomNegNodes - distFromEnd
@@ -129,8 +137,8 @@ func (be *BodyExtractor) computeGravityScores(nodesWithText []*goquery.Selection
 					negscore = -negscore
 				}
 				negscore = negscore + negativeScoring
-				if negscore > scoreWeights["negative_score_threshold"] {
-					boostScore = scoreWeights["negative_score_boost"]
+				if negscore > scoreWeights.negativeScoreThreshold {
+					boostScore = scoreWeights.negativeScoreBoost
 				}
 			}
 		}
@@ -152,7 +160,7 @@ func (be *BodyExtractor) computeGravityScores(nodesWithText []*goquery.Selection
 
 		parentParent := parent.Parent()
 		be.updateNodeCount(parentParent, 1)
-		be.updateScore(parentParent, upscore*scoreWeights["parent_parent_node"])
+		be.updateScore(parentParent, upscore*scoreWeights.parentParentNode)
 		if parentParent != nil && parentParent.Length() > 0 {
 			parentNodesMap[parsers.OuterHTML(parentParent)] = parentParent
 		}
@@ -267,7 +275,7 @@ func (be *BodyExtractor) nodesToCheck(doc *goquery.Document) []*goquery.Selectio
 
 // isBoostable checks whether node should be boosted
 func (be *BodyExtractor) isBoostable(node *goquery.Selection) bool {
-	maxSteps := int(scoreWeights["boost_max_steps_from_node"])
+	maxSteps := scoreWeights.boostMaxStepsFromNode
 	siblings := be.walkSiblings(node)
 	for i, s := range siblings {
 		if i >= maxSteps {
@@ -281,7 +289,7 @@ func (be *BodyExtractor) isBoostable(node *goquery.Selection) bool {
 		}
 		sw := parsers.GetAttribute(s, "stop_words", 0, 0)
 		if v, ok := sw.(int); ok {
-			if v > int(scoreWeights["boost_min_stopword_count"]) {
+			if v > scoreWeights.boostMinStopwordCount {
 				return true
 			}
 		}
@@ -299,7 +307,7 @@ func (be *BodyExtractor) boostHighlyLikelyNodes(doc *goquery.Document) {
 	for _, e := range candidates {
 		boost := be.isHighlyLikely(e)
 		if boost > 0 {
-			be.updateScore(e, boost*scoreWeights["parent_node"])
+			be.updateScore(e, boost*scoreWeights.parentNode)
 		}
 	}
 }
@@ -307,7 +315,7 @@ func (be *BodyExtractor) boostHighlyLikelyNodes(doc *goquery.Document) {
 // isHighlyLikely checks tag patterns against ARTICLE_BODY_TAGS
 func (be *BodyExtractor) isHighlyLikely(node *goquery.Selection) float64 {
 	// helper to match tag dict
-	match := func(node *goquery.Selection, tag ArticleBodyTag) bool {
+	match := func(node *goquery.Selection, tag constants.ArticleBodyTag) bool {
 		if node.Length() == 0 {
 			return false
 		}
@@ -336,7 +344,7 @@ func (be *BodyExtractor) isHighlyLikely(node *goquery.Selection) float64 {
 	}
 
 	best := 0
-	for _, t := range ARTICLE_BODY_TAGS {
+	for _, t := range constants.ARTICLE_BODY_TAGS {
 		if match(node, t) {
 			if t.ScoreBoost > best {
 				best = t.ScoreBoost

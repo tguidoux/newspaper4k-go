@@ -1,9 +1,14 @@
 package urls
 
 import (
+	"fmt"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
+
+	"github.com/tguidoux/newspaper4k-go/pkg/constants"
+	"golang.org/x/net/publicsuffix"
 )
 
 const (
@@ -46,10 +51,52 @@ var (
 	dateRegex = regexp.MustCompile(dateRegexPattern)
 )
 
+type URL struct {
+	Domain    string
+	Subdomain string
+	TLD       string
+	Port      string
+	ICANN     bool
+	FileType  string
+	*url.URL
+}
+
+func (u *URL) Brand() string {
+	return u.Domain
+}
+
+func (u *URL) Copy() *URL {
+	if u == nil {
+		return nil
+	}
+	copiedURL := *u.URL
+	return &URL{
+		Domain:    u.Domain,
+		Subdomain: u.Subdomain,
+		TLD:       u.TLD,
+		Port:      u.Port,
+		ICANN:     u.ICANN,
+		URL:       &copiedURL,
+	}
+}
+
+func (u *URL) Prepare(source *URL) error {
+	if source != nil && source.String() != "" {
+		preparedStr := PrepareURL(u.String(), source.String())
+		parsed, err := Parse(preparedStr)
+		if err != nil {
+			return fmt.Errorf("failed to prepare URL: %v", err)
+		}
+		*u = *parsed
+	}
+
+	return nil
+}
+
 // RedirectBack handles URL redirects from services like Pinterest
 // that redirect to their site with the real news URL as a GET parameter
 func RedirectBack(urlStr, sourceDomain string) string {
-	parsedURL, err := url.Parse(urlStr)
+	parsedURL, err := Parse(urlStr)
 	if err != nil {
 		return urlStr
 	}
@@ -76,23 +123,50 @@ func PrepareURL(urlStr string, sourceURL string) string {
 	var properURL string
 
 	if sourceURL != "" {
-		sourceParsed, err := url.Parse(sourceURL)
+		sourceParsed, err := Parse(sourceURL)
 		if err != nil {
 			return ""
 		}
 		sourceDomain := sourceParsed.Host
 
-		properURL = joinURL(sourceURL, urlStr)
+		properURL = JoinURL(sourceURL, urlStr)
 		properURL = RedirectBack(properURL, sourceDomain)
 	} else {
 		properURL = urlStr
 	}
-
+	properURL = cleanURL(properURL)
 	return properURL
 }
 
-// joinURL joins a base URL with a relative URL
-func joinURL(baseURL, relativeURL string) string {
+func cleanURL(urlStr string) string {
+	// Remove URL fragments
+	if idx := strings.Index(urlStr, "#"); idx != -1 {
+		urlStr = urlStr[:idx]
+	}
+
+	// Remove double slashes in the path
+	parsedURL, err := url.Parse(urlStr)
+	if err != nil {
+		return urlStr
+	}
+
+	// Remove query parameters with COMMON_TRACKING_PARAMS
+	queryValues := parsedURL.Query()
+	for _, param := range constants.COMMON_TRACKING_PARAMS {
+		delete(queryValues, param)
+	}
+	parsedURL.RawQuery = queryValues.Encode()
+
+	// Clean up the path by replacing multiple slashes with a single slash
+	cleanedPath := strings.ReplaceAll(parsedURL.Path, "//", "/")
+	parsedURL.Path = cleanedPath
+	urlStr = parsedURL.String()
+
+	return urlStr
+}
+
+// JoinURL joins a base URL with a relative URL
+func JoinURL(baseURL, relativeURL string) string {
 	base, err := url.Parse(baseURL)
 	if err != nil {
 		return relativeURL
@@ -107,32 +181,19 @@ func joinURL(baseURL, relativeURL string) string {
 }
 
 // ValidURL checks if a URL is a valid news article URL
-func ValidURL(urlStr string, test bool) bool {
-	// If testing, preprocess the URL
-	if test {
-		urlStr = PrepareURL(urlStr, "")
-	}
-
-	// Check minimum length (11 chars is shortest valid URL, e.g., http://x.co)
-	if urlStr == "" || len(urlStr) < 11 {
-		return false
-	}
+func (u *URL) IsValidNewsArticleURL() bool {
 
 	// Check for mailto or missing http/https
+	urlStr := u.String()
 	if strings.Contains(urlStr, "mailto:") ||
 		(!strings.Contains(urlStr, "http://") && !strings.Contains(urlStr, "https://")) {
 		return false
 	}
 
-	parsedURL, err := url.Parse(urlStr)
-	if err != nil {
-		return false
-	}
-
-	path := parsedURL.Path
+	path := u.Path
 
 	// Input URL is not in valid form
-	if !strings.HasPrefix(path, "/") {
+	if !strings.HasPrefix(u.Path, "/") {
 		return false
 	}
 
@@ -150,8 +211,8 @@ func ValidURL(urlStr string, test bool) bool {
 
 	// Extract file type
 	if len(filteredChunks) > 0 {
-		fileType := URLToFileType(urlStr)
-		if fileType != "" && !contains(allowedTypes, fileType) {
+		fileType := u.FileType
+		if fileType != "" && !slices.Contains(allowedTypes, fileType) {
 			return false
 		}
 
@@ -169,9 +230,12 @@ func ValidURL(urlStr string, test bool) bool {
 	}
 
 	// Extract TLD data (simplified version)
-	tldData := extractTLD(urlStr)
-	subdomain := tldData["subdomain"]
-	tld := strings.ToLower(tldData["domain"])
+	tldData, err := Parse(urlStr)
+	if err != nil {
+		return false
+	}
+	subdomain := tldData.Subdomain
+	tld := strings.ToLower(tldData.Domain)
 
 	urlSlug := ""
 	if len(filteredChunks) > 0 {
@@ -179,7 +243,7 @@ func ValidURL(urlStr string, test bool) bool {
 	}
 
 	// Check bad domains
-	if contains(badDomains, tld) {
+	if slices.Contains(badDomains, tld) {
 		return false
 	}
 
@@ -217,7 +281,7 @@ func ValidURL(urlStr string, test bool) bool {
 
 	// Check for bad chunks in path or subdomain
 	for _, badChunk := range badChunks {
-		if contains(filteredChunks, badChunk) || badChunk == subdomain {
+		if slices.Contains(filteredChunks, badChunk) || badChunk == subdomain {
 			return false
 		}
 	}
@@ -253,8 +317,8 @@ func ValidURL(urlStr string, test bool) bool {
 
 	// If URL has an allowed file type and passes basic checks, consider it valid
 	if len(filteredChunks) >= 2 {
-		fileType := URLToFileType(urlStr)
-		if fileType != "" && contains(allowedTypes, fileType) {
+		fileType := u.FileType
+		if fileType != "" && slices.Contains(allowedTypes, fileType) {
 			return true
 		}
 	}
@@ -262,14 +326,98 @@ func ValidURL(urlStr string, test bool) bool {
 	return false
 }
 
-// URLToFileType extracts the file type from a URL
-func URLToFileType(absURL string) string {
-	parsedURL, err := url.Parse(absURL)
+// IsAbsURL checks if a URL is absolute
+func (u *URL) IsAbsolute() bool {
+	return u.Scheme != "" && u.Host != ""
+}
+
+// GetPathChunks splits path into chunks
+func (u *URL) GetPathChunks() []string {
+	parts := strings.Split(u.Path, "/")
+	chunks := []string{}
+	for _, part := range parts {
+		if part != "" {
+			chunks = append(chunks, part)
+		}
+	}
+	return chunks
+}
+
+func New(urlStr string) (*URL, error) {
+	return Parse(urlStr)
+}
+
+// Parse mirrors net/url.Parse except instead it returns
+// a URL, which contains extra fields.
+func Parse(s string) (*URL, error) {
+	url, err := url.Parse(s)
 	if err != nil {
-		return ""
+		return nil, fmt.Errorf("url parsing failed %q: %v", s, err)
+	}
+	if url.Host == "" {
+		return &URL{URL: url}, nil
 	}
 
-	path := strings.TrimSuffix(parsedURL.Path, "/")
+	// extract domain, subdomain, tld, ...
+	dom, port := domainPort(url.Host)
+	// etld+1
+	etld1, err := publicsuffix.EffectiveTLDPlusOne(dom)
+	suffix, icann := publicsuffix.PublicSuffix(strings.ToLower(dom))
+
+	// HACK: attempt to support valid domains which are not registered with ICANN
+	if err != nil && !icann && suffix == dom {
+		etld1 = dom
+		err = nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	// convert to domain name, and tld
+	i := strings.Index(etld1, ".")
+	if i < 0 {
+		return nil, fmt.Errorf("tld: failed parsing %q", s)
+	}
+	domName := etld1[0:i]
+	tld := etld1[i+1:]
+
+	// and subdomain
+	sub := ""
+	if rest := strings.TrimSuffix(dom, "."+etld1); rest != dom {
+		sub = rest
+	}
+
+	// extract file type
+	fileType := extractFileTypeFromPath(url.Path)
+
+	return &URL{
+		Subdomain: sub,
+		Domain:    domName,
+		TLD:       tld,
+		Port:      port,
+		ICANN:     icann,
+		URL:       url,
+		FileType:  fileType,
+	}, nil
+}
+
+// domainPort splits host:port into domain and port
+func domainPort(host string) (string, string) {
+	for i := len(host) - 1; i >= 0; i-- {
+		if host[i] == ':' {
+			return host[:i], host[i+1:]
+		} else if host[i] < '0' || host[i] > '9' {
+			return host, ""
+		}
+	}
+	//will only land here if the string is all digits,
+	//net/url should prevent that from happening
+	return host, ""
+}
+
+// URLToFileType extracts the file type from a URL
+func extractFileTypeFromPath(path string) string {
+
+	path = strings.TrimSuffix(path, "/")
 
 	pathChunks := strings.Split(path, "/")
 	if len(pathChunks) == 0 {
@@ -286,88 +434,9 @@ func URLToFileType(absURL string) string {
 	fileType := parts[len(parts)-1]
 
 	// Assume file extension is maximum 5 characters long
-	if len(fileType) <= 5 || contains(allowedTypes, strings.ToLower(fileType)) {
+	if len(fileType) <= 5 || slices.Contains(allowedTypes, strings.ToLower(fileType)) {
 		return strings.ToLower(fileType)
 	}
 
 	return ""
-}
-
-// GetDomain returns the domain part of a URL
-func GetDomain(absURL string) string {
-	parsedURL, err := url.Parse(absURL)
-	if err != nil {
-		return ""
-	}
-	return parsedURL.Host
-}
-
-// GetScheme returns the scheme part of a URL (http, https, ftp, etc)
-func GetScheme(absURL string) string {
-	parsedURL, err := url.Parse(absURL)
-	if err != nil {
-		return ""
-	}
-	return parsedURL.Scheme
-}
-
-// GetPath returns the path part of a URL
-func GetPath(absURL string) string {
-	parsedURL, err := url.Parse(absURL)
-	if err != nil {
-		return ""
-	}
-	return parsedURL.Path
-}
-
-// IsAbsURL checks if a URL is absolute
-func IsAbsURL(urlStr string) bool {
-	parsedURL, err := url.Parse(urlStr)
-	if err != nil {
-		return false
-	}
-	return parsedURL.Scheme != "" && parsedURL.Host != ""
-}
-
-// URLJoinIfValid joins a base URL and a possibly relative URL safely
-func URLJoinIfValid(baseURL, relativeURL string) string {
-	result := joinURL(baseURL, relativeURL)
-	return result
-}
-
-// Helper functions
-
-// contains checks if a slice contains a string
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
-}
-
-// extractTLD extracts TLD information from a URL (simplified version)
-func extractTLD(urlStr string) map[string]string {
-	parsedURL, err := url.Parse(urlStr)
-	if err != nil {
-		return map[string]string{"domain": "", "subdomain": ""}
-	}
-
-	host := parsedURL.Host
-	parts := strings.Split(host, ".")
-
-	result := map[string]string{
-		"domain":    "",
-		"subdomain": "",
-	}
-
-	if len(parts) >= 2 {
-		result["domain"] = parts[len(parts)-2]
-		if len(parts) >= 3 {
-			result["subdomain"] = strings.Join(parts[:len(parts)-2], ".")
-		}
-	}
-
-	return result
 }

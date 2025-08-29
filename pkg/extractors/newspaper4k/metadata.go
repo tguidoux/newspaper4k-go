@@ -2,12 +2,14 @@ package newspaper4k
 
 import (
 	"net/url"
-	"regexp"
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/tguidoux/newspaper4k-go/internal/parsers"
+	"github.com/tguidoux/newspaper4k-go/internal/urls"
 	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
+	"github.com/tguidoux/newspaper4k-go/pkg/constants"
+	"github.com/tguidoux/newspaper4k-go/pkg/languages"
 	"github.com/tguidoux/newspaper4k-go/pkg/newspaper"
 )
 
@@ -25,63 +27,45 @@ func NewMetadataExtractor(config *configuration.Configuration) *MetadataExtracto
 
 // Parse extracts metadata from the article and updates the article in-place
 func (me *MetadataExtractor) Parse(a *newspaper.Article) error {
-	var doc *goquery.Document
-	var err error
-
-	// Use Doc field if available, otherwise parse HTML using parser
-	if a.Doc != nil {
-		doc = a.Doc
-	} else {
-		doc, err = parsers.FromString(a.HTML)
+	if a.Doc == nil {
+		doc, err := parsers.FromString(a.HTML)
 		if err != nil {
 			return err
 		}
+		a.Doc = doc
 	}
-
 	// Extract metadata
-	a.MetaLang = me.getMetaLanguage(doc)
-	a.CanonicalLink = me.getCanonicalLink(a.URL, doc)
-	a.MetaSiteName = me.getMetaField(doc, "og:site_name")
-	a.MetaDescription = me.getMetaField(doc, []string{"description", "og:description"})
-	a.MetaKeywords = me.getMetaKeywords(doc)
-	a.MetaData = me.getMetadata(doc)
+	a.MetaLang = me.getMetaLanguage(a.Doc)
+	a.CanonicalLink = me.getCanonicalLink(a.URL, a.Doc)
+	a.MetaSiteName = me.getMetaField(a.Doc, "og:site_name")
+	a.MetaDescription = me.getMetaField(a.Doc, "description", "og:description")
+	a.MetaKeywords = me.getMetaKeywords(a.Doc)
+	a.MetaData = me.getMetadata(a.Doc)
 
 	return nil
 }
 
 // getMetaLanguage extracts the language from meta tags
 func (me *MetadataExtractor) getMetaLanguage(doc *goquery.Document) string {
-	getIfValid := func(s string) string {
-		if s == "" || len(s) < 2 {
-			return ""
-		}
-		s = s[:2]
-		matched, _ := regexp.MatchString(RE_LANG, s)
-		if matched {
-			return strings.ToLower(s)
-		}
-		return ""
-	}
-
-	// Check lang attribute on html element
-	if lang, exists := doc.Find("html").Attr("lang"); exists {
-		if valid := getIfValid(lang); valid != "" {
-			return valid
+	// 1) prefer the `lang` attribute on <html>
+	if raw, exists := doc.Find("html").Attr("lang"); exists {
+		lang := strings.ToLower(strings.TrimSpace(raw))
+		if languages.IsValidLanguageCode(lang) {
+			return lang
 		}
 	}
 
-	// Check meta language tags
-	for _, elem := range META_LANGUAGE_TAGS {
-		tag := elem["tag"]
-		attr := elem["attr"]
-		value := elem["value"]
+	// 2) fallback to configured META_LANGUAGE_TAGS (e.g. <meta property/name=item> tags)
+	for _, entry := range constants.META_LANGUAGE_TAGS {
+		tag := entry["tag"]
+		attr := entry["attr"]
+		value := entry["value"]
 
-		selection := doc.Find(tag + "[" + attr + "='" + value + "']")
-		if selection.Length() > 0 {
-			if content, exists := selection.First().Attr("content"); exists {
-				if valid := getIfValid(content); valid != "" {
-					return valid
-				}
+		sel := doc.Find(tag + "[" + attr + "='" + value + "']").First()
+		if content := getAttrContent(sel, "content"); content != "" {
+			lang := strings.ToLower(strings.TrimSpace(content))
+			if languages.IsValidLanguageCode(lang) {
+				return lang
 			}
 		}
 	}
@@ -91,125 +75,82 @@ func (me *MetadataExtractor) getMetaLanguage(doc *goquery.Document) string {
 
 // getCanonicalLink extracts the canonical URL
 func (me *MetadataExtractor) getCanonicalLink(articleURL string, doc *goquery.Document) string {
-	candidates := []string{}
+	// Collect candidate URLs: <link rel="canonical"> and og:url
+	var candidates []string
 
-	// Get canonical links using parser's GetTags method
-	canonicalElements := parsers.GetTags(doc.Selection, "link", map[string]string{"rel": "canonical"}, "exact", false)
-	for _, element := range canonicalElements {
-		href := parsers.GetAttribute(element, "href", nil, "")
-		if hrefStr, ok := href.(string); ok && hrefStr != "" {
-			candidates = append(candidates, hrefStr)
+	linkElems := parsers.GetTags(doc.Selection, "link", map[string]string{"rel": "canonical"}, "exact", false)
+	for _, el := range linkElems {
+		attr := parsers.GetAttribute(el, "href", nil, "")
+		if hrefStr, ok := attr.(string); ok && strings.TrimSpace(hrefStr) != "" {
+			candidates = append(candidates, strings.TrimSpace(hrefStr))
+			break // prefer first canonical link
 		}
 	}
 
-	// Get og:url
-	if ogURL := me.getMetaField(doc, "og:url"); ogURL != "" {
-		candidates = append(candidates, ogURL)
+	if og := me.getMetaField(doc, "og:url"); og != "" {
+		candidates = append(candidates, og)
 	}
 
-	// Filter and clean candidates
-	validCandidates := []string{}
-	for _, c := range candidates {
-		c = strings.TrimSpace(c)
-		if c != "" {
-			validCandidates = append(validCandidates, c)
-		}
-	}
-
-	if len(validCandidates) == 0 {
+	if len(candidates) == 0 {
 		return ""
 	}
 
-	metaURL := validCandidates[0]
-	parsedMetaURL, err := url.Parse(metaURL)
+	raw := candidates[0]
+
+	// Parse using net/url. If relative, resolve against articleURL.
+	parsedMeta, err := url.Parse(raw)
 	if err != nil {
-		return metaURL
+		return raw
 	}
 
-	if parsedMetaURL.Host == "" {
-		// Might not have a hostname
-		parsedArticleURL, err := url.Parse(articleURL)
-		if err != nil {
-			return metaURL
-		}
-
-		stripHostnameInMetaPath := regexp.MustCompile(`.*` + regexp.QuoteMeta(parsedArticleURL.Host) + `(?=/)/(.*)`)
-		matches := stripHostnameInMetaPath.FindStringSubmatch(parsedMetaURL.Path)
-		if len(matches) > 1 {
-			truePath := matches[1]
-			metaURL = (&url.URL{
-				Scheme: parsedArticleURL.Scheme,
-				Host:   parsedArticleURL.Host,
-				Path:   truePath,
-			}).String()
-		} else {
-			metaURL = (&url.URL{
-				Scheme:   parsedArticleURL.Scheme,
-				Host:     parsedArticleURL.Host,
-				Path:     parsedMetaURL.Path,
-				RawQuery: parsedMetaURL.RawQuery,
-				Fragment: parsedMetaURL.Fragment,
-			}).String()
-		}
+	if parsedMeta.IsAbs() {
+		return parsedMeta.String()
 	}
 
-	return metaURL
+	parsedArticle, err := urls.Parse(articleURL)
+	if err != nil {
+		return parsedMeta.String()
+	}
+
+	resolved := parsedArticle.ResolveReference(parsedMeta)
+	return resolved.String()
 }
 
 // getMetadata extracts all metadata from meta tags
 func (me *MetadataExtractor) getMetadata(doc *goquery.Document) map[string]string {
-	data := make(map[string]string)
+	out := make(map[string]string)
 
 	doc.Find("meta").Each(func(i int, s *goquery.Selection) {
-		var key, value string
-
-		if property, exists := s.Attr("property"); exists {
-			key = property
-			if content, exists := s.Attr("content"); exists {
-				value = content
-			}
-		} else if name, exists := s.Attr("name"); exists {
-			key = name
-			if content, exists := s.Attr("content"); exists {
-				value = content
-			}
-		} else if itemprop, exists := s.Attr("itemprop"); exists {
-			key = itemprop
-			if content, exists := s.Attr("content"); exists {
-				value = content
-			}
+		// Prefer common attributes in this order: property, name, itemprop
+		var key string
+		if v := getAttrContent(s, "property"); v != "" {
+			key = v
+		} else if v := getAttrContent(s, "name"); v != "" {
+			key = v
+		} else if v := getAttrContent(s, "itemprop"); v != "" {
+			key = v
 		}
 
-		if key != "" && value != "" {
-			key = strings.TrimSpace(key)
-			value = strings.TrimSpace(value)
+		if key == "" {
+			return
+		}
 
-			data[key] = value
+		if content := getAttrContent(s, "content"); content != "" {
+			out[strings.TrimSpace(key)] = strings.TrimSpace(content)
 		}
 	})
 
-	return data
+	return out
 }
 
 // getMetaField extracts a specific meta field
-func (me *MetadataExtractor) getMetaField(doc *goquery.Document, fields interface{}) string {
-	var fieldList []string
-
-	switch v := fields.(type) {
-	case string:
-		fieldList = []string{v}
-	case []string:
-		fieldList = v
-	default:
-		return ""
-	}
-
-	for _, f := range fieldList {
-		// Use parser's GetMetatags method
-		metaElements := parsers.GetMetatags(doc.Selection, f)
-		for _, metaElement := range metaElements {
-			content := parsers.GetAttribute(metaElement, "content", nil, "")
-			if contentStr, ok := content.(string); ok && contentStr != "" {
+func (me *MetadataExtractor) getMetaField(doc *goquery.Document, fields ...string) string {
+	for _, f := range fields {
+		// Use parser helper to find meta tags (handles property/name/itemprop variations)
+		metas := parsers.GetMetatags(doc.Selection, f)
+		for _, m := range metas {
+			content := parsers.GetAttribute(m, "content", nil, "")
+			if contentStr, ok := content.(string); ok && strings.TrimSpace(contentStr) != "" {
 				return strings.TrimSpace(contentStr)
 			}
 		}
@@ -219,18 +160,28 @@ func (me *MetadataExtractor) getMetaField(doc *goquery.Document, fields interfac
 
 // getMetaKeywords extracts keywords from meta tags
 func (me *MetadataExtractor) getMetaKeywords(doc *goquery.Document) []string {
-	keywordsStr := me.getMetaField(doc, "keywords")
-	if keywordsStr == "" {
-		return []string{}
+	ks := me.getMetaField(doc, "keywords")
+	if ks == "" {
+		return nil
 	}
 
-	keywords := strings.Split(keywordsStr, ",")
-	result := make([]string, 0, len(keywords))
-	for _, k := range keywords {
-		trimmed := strings.TrimSpace(k)
-		if trimmed != "" {
-			result = append(result, trimmed)
+	parts := strings.Split(ks, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if t := strings.TrimSpace(p); t != "" {
+			out = append(out, t)
 		}
 	}
-	return result
+	return out
+}
+
+// getAttrContent returns the value of attr on sel or an empty string if missing.
+func getAttrContent(sel *goquery.Selection, attr string) string {
+	if sel == nil || sel.Length() == 0 {
+		return ""
+	}
+	if v, ok := sel.Attr(attr); ok {
+		return v
+	}
+	return ""
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/tguidoux/newspaper4k-go/internal/languages"
 	"github.com/tguidoux/newspaper4k-go/internal/parsers"
 	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
+	"github.com/tguidoux/newspaper4k-go/pkg/constants"
 	"github.com/tguidoux/newspaper4k-go/pkg/newspaper"
 	"golang.org/x/text/language"
 )
@@ -31,20 +32,15 @@ func NewTitleExtractor(config *configuration.Configuration) *TitleExtractor {
 func (te *TitleExtractor) Parse(a *newspaper.Article) error {
 	te.title = ""
 
-	var doc *goquery.Document
-	var err error
-
-	// Use Doc field if available, otherwise parse HTML using parser
-	if a.Doc != nil {
-		doc = a.Doc
-	} else {
-		doc, err = parsers.FromString(a.HTML)
+	if a.Doc == nil {
+		doc, err := parsers.FromString(a.HTML)
 		if err != nil {
 			return err
 		}
+		a.Doc = doc
 	}
 
-	titleElement := doc.Find("title").First()
+	titleElement := a.Doc.Find("title").First()
 	if titleElement.Length() == 0 {
 		return nil
 	}
@@ -53,10 +49,10 @@ func (te *TitleExtractor) Parse(a *newspaper.Article) error {
 	usedDelimiter := false
 
 	// title from h1
-	titleTextH1 := te.getTitleFromH1(doc)
+	titleTextH1 := te.getTitleFromH1(a.Doc)
 
 	// title from og:title and similar meta tags
-	titleTextFB := te.getTitleFromMeta(doc)
+	titleTextFB := te.getTitleFromMeta(a.Doc)
 
 	// create filtered versions for comparison
 	langTag := a.GetLanguage()
@@ -109,7 +105,7 @@ func (te *TitleExtractor) Parse(a *newspaper.Article) error {
 		}
 	}
 
-	title := strings.ReplaceAll(titleText, MOTLEY_REPLACEMENT[0], MOTLEY_REPLACEMENT[1])
+	title := strings.ReplaceAll(titleText, constants.MOTLEY_REPLACEMENT[0], constants.MOTLEY_REPLACEMENT[1])
 
 	// prefer h1 if very similar
 	filterTitle := filterRegex.ReplaceAllString(strings.ToLower(title), "")
@@ -156,7 +152,7 @@ func (te *TitleExtractor) getTitleFromH1(doc *goquery.Document) string {
 
 // getTitleFromMeta extracts title from meta tags
 func (te *TitleExtractor) getTitleFromMeta(doc *goquery.Document) string {
-	for _, metaName := range TITLE_META_INFO {
+	for _, metaName := range constants.TITLE_META_INFO {
 		// Use parser's GetMetatags method
 		metaElements := parsers.GetMetatags(doc.Selection, metaName)
 		for _, metaElement := range metaElements {
@@ -197,5 +193,5 @@ func (te *TitleExtractor) splitTitle(title, delimiter, hint string) string {
 	}
 
 	result := pieces[largestIndex]
-	return strings.ReplaceAll(result, TITLE_REPLACEMENTS[0], TITLE_REPLACEMENTS[1])
+	return strings.ReplaceAll(result, constants.TITLE_REPLACEMENTS[0], constants.TITLE_REPLACEMENTS[1])
 }

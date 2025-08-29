@@ -5,8 +5,10 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/tguidoux/newspaper4k-go/internal/helpers"
 	"github.com/tguidoux/newspaper4k-go/internal/parsers"
 	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
+	"github.com/tguidoux/newspaper4k-go/pkg/constants"
 	"github.com/tguidoux/newspaper4k-go/pkg/newspaper"
 )
 
@@ -28,26 +30,24 @@ func NewAuthorsExtractor(config *configuration.Configuration) *AuthorsExtractor 
 func (ae *AuthorsExtractor) Parse(a *newspaper.Article) error {
 	ae.authors = []string{}
 
-	var doc *goquery.Document
-	var err error
-
-	// Use Doc field if available, otherwise parse HTML using parser
-	if a.Doc != nil {
-		doc = a.Doc
-	} else {
-		doc, err = parsers.FromString(a.HTML)
+	if a.Doc == nil {
+		doc, err := parsers.FromString(a.HTML)
 		if err != nil {
 			return err
 		}
+		a.Doc = doc
 	}
 
-	authors := ae.extractAuthors(doc)
+	authors := ae.extractAuthors(a.Doc)
 
 	// Clean up authors of stopwords
 	authors = ae.cleanAuthors(authors)
 
 	// Remove duplicates while preserving order
-	authors = ae.uniqifyList(authors)
+	authors = helpers.UniqueStrings(authors, helpers.UniqueOptions{
+		CaseSensitive: false,
+		PreserveOrder: true,
+	})
 
 	ae.authors = authors
 	a.Authors = authors
@@ -148,8 +148,8 @@ func (ae *AuthorsExtractor) extractFromAuthorTags(doc *goquery.Document) []strin
 	authors := []string{}
 
 	// Search for elements with author-related attributes and values
-	for _, attr := range AUTHOR_ATTRS {
-		for _, val := range AUTHOR_VALS {
+	for _, attr := range constants.AUTHOR_ATTRS {
+		for _, val := range constants.AUTHOR_VALS {
 			// Use parser's GetTags method for attribute-based searching
 			attribs := map[string]string{attr: val}
 			elements := parsers.GetTags(doc.Selection, "", attribs, "exact", false)
@@ -223,7 +223,7 @@ func (ae *AuthorsExtractor) parseByline(searchStr string) []string {
 // cleanAuthors removes stopwords from author names
 func (ae *AuthorsExtractor) cleanAuthors(authors []string) []string {
 	// Create regex pattern for stopwords
-	stopwordsPattern := strings.Join(AUTHOR_STOP_WORDS, "|")
+	stopwordsPattern := strings.Join(constants.AUTHOR_STOP_WORDS, "|")
 	stopwordsRegex := regexp.MustCompile(`(?i)\b(` + stopwordsPattern + `)\b`)
 
 	cleaned := []string{}
@@ -240,20 +240,4 @@ func (ae *AuthorsExtractor) cleanAuthors(authors []string) []string {
 	}
 
 	return cleaned
-}
-
-// uniqifyList removes duplicates from list while preserving order
-func (ae *AuthorsExtractor) uniqifyList(lst []string) []string {
-	seen := make(map[string]bool)
-	result := []string{}
-
-	for _, item := range lst {
-		key := strings.ToLower(strings.TrimSpace(item))
-		if key != "" && !seen[key] {
-			seen[key] = true
-			result = append(result, strings.TrimSpace(item))
-		}
-	}
-
-	return result
 }
