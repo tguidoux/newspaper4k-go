@@ -83,7 +83,8 @@ func UniqueStructByKey[T any](items []T, keyFunc func(T) string, opts UniqueOpti
 
 	for _, item := range items {
 		key := keyFunc(item)
-		if !opts.CaseSensitive && opts.PreserveOrder {
+		// Normalize key to lowercase when case-insensitive, regardless of PreserveOrder
+		if !opts.CaseSensitive {
 			key = strings.ToLower(key)
 		}
 
