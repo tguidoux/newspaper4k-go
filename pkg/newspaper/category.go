@@ -6,6 +6,7 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/tguidoux/newspaper4k-go/internal/urls"
+	"github.com/tguidoux/newspaper4k-go/pkg/constants"
 )
 
 // Category represents a category object from a news source
@@ -36,7 +37,12 @@ func IsValidCategoryURL(urlStr string) bool {
 		return false
 	}
 
-	pathChunks := urls.GetPathChunks(parsedURL.Path)
+	// Remove URLs with query parameters or fragments
+	if parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
+		return false
+	}
+
+	pathChunks := parsedURL.GetPathChunks()
 
 	// Remove index.html
 	for i, chunk := range pathChunks {
@@ -51,23 +57,22 @@ func IsValidCategoryURL(urlStr string) bool {
 		return false
 	}
 
-	if hasInvalidPrefixes(pathChunks) {
-		return false
+	// Has invalid prefixes
+	for _, chunk := range pathChunks {
+		if strings.HasPrefix(chunk, "_") || strings.HasPrefix(chunk, "#") {
+			return false
+		}
 	}
 
-	if len(pathChunks) == 2 && slices.Contains(CATEGORY_URL_PREFIXES, pathChunks[0]) {
+	if len(pathChunks) == 2 && slices.Contains(constants.CATEGORY_URL_PREFIXES, pathChunks[0]) {
 		return true
 	}
 
-	return len(pathChunks) == 1 && len(pathChunks[0]) > 1 && len(pathChunks[0]) < 20
-}
+	// Exclude certain prefixes
 
-// hasInvalidPrefixes checks for invalid path prefixes
-func hasInvalidPrefixes(pathChunks []string) bool {
-	for _, chunk := range pathChunks {
-		if strings.HasPrefix(chunk, "_") || strings.HasPrefix(chunk, "#") {
-			return true
-		}
+	if len(pathChunks) == 2 && slices.Contains(constants.NOT_CATEGORY_URL_PREFIXES, pathChunks[0]) {
+		return false
 	}
-	return false
+
+	return len(pathChunks) == 1 && len(pathChunks[0]) > 1 && len(pathChunks[0]) < 20
 }
