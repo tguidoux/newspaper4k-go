@@ -351,11 +351,18 @@ func demonstrateSourceUsage() {
 		}
 		fmt.Printf("   %d. Title: %s\n", i+1, article.Title)
 		fmt.Printf("      URL: %s\n", parsedURL.String())
-		fmt.Printf("      Source URL: %s\n", article.SourceURL)
-		fmt.Printf("      Authors: %v\n", article.Authors)
-		fmt.Printf("      Publish Date: %v\n", article.PublishDate)
-		fmt.Printf("      Top Image: %s\n", article.TopImage)
-		fmt.Printf("      Text (first 100 chars): %.100s\n", article.Text)
+		// fmt.Printf("      Source URL: %s\n", article.SourceURL)
+		// fmt.Printf("      Authors: %v\n", article.Authors)
+		// fmt.Printf("      Publish Date: %v\n", article.PublishDate)
+		// fmt.Printf("      Top Image: %s\n", article.TopImage)
+		// fmt.Printf("      Text (first 100 chars): %.100s\n", article.Text)
+		// fmt.Println(article.ToJSON())
+		aj, err := article.ToSimpleJSON()
+		if err != nil {
+			fmt.Printf("Error converting article to JSON: %v\n", err)
+			continue
+		}
+		fmt.Println(aj)
 
 	}
 

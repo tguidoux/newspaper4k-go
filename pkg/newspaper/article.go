@@ -1,6 +1,7 @@
 package newspaper
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -65,6 +66,21 @@ type Article struct {
 	CleanDoc             *goquery.Document    // Cleaned version of the DOM tree
 	Language             language.Tag         // Detected language of the article
 	Config               *configuration.Configuration
+	Bitcoins             []string
+	MD5s                 []string
+	SHA1s                []string
+	SHA256s              []string
+	SHA512s              []string
+	Domains              []string
+	Emails               []string
+	IPv4s                []string
+	IPv6s                []string
+	OtherURLs            []string
+	Files                []string
+	CVEs                 []string
+	CAPECs               []string
+	CWEs                 []string
+	CPEs                 []string
 }
 
 // ParseRequest represents parameters for creating and parsing an Article.
@@ -598,79 +614,146 @@ func (a *Article) GetCleanDoc() *goquery.Document {
 // ToJSON creates a JSON string from the article data
 func (a *Article) ToJSON() (string, error) {
 	if err := a.ThrowIfNotParsedVerbose(); err != nil {
-		return "", err
+		return "", fmt.Errorf("you must parse() an article first: %w", err)
 	}
 
-	// Create a map with the most important article data
+	// Prepare serializable representations for complex fields
+	var topNodeHTML string
+	if a.TopNode != nil {
+		topNodeHTML = parsers.OuterHTML(a.TopNode)
+	}
+
+	var docHTML string
+	if a.Doc != nil {
+		if sel := a.Doc.Find("html").First(); sel != nil {
+			docHTML = parsers.OuterHTML(sel)
+		}
+	}
+
+	var cleanDocHTML string
+	if a.CleanDoc != nil {
+		if sel := a.CleanDoc.Find("html").First(); sel != nil {
+			cleanDocHTML = parsers.OuterHTML(sel)
+		}
+	}
+
+	// Convert categories to string URLs
+	var categories []string
+	if len(a.Categories) > 0 {
+		categories = make([]string, 0, len(a.Categories))
+		for _, c := range a.Categories {
+			if c != nil && c.URL != nil {
+				categories = append(categories, c.String())
+			}
+		}
+	}
+
+	// Format publish date
+	var publishDate interface{}
+	if a.PublishDate != nil {
+		publishDate = a.PublishDate.Format(time.RFC3339)
+	} else {
+		publishDate = nil
+	}
+
+	// Build a full map containing all Article fields (serialized)
 	articleData := map[string]interface{}{
-		"title":            a.Title,
-		"text":             a.Text,
-		"authors":          a.Authors,
-		"publish_date":     a.PublishDate,
-		"summary":          a.Summary,
-		"keywords":         a.Keywords,
-		"keyword_scores":   a.KeywordScores,
 		"source_url":       a.SourceURL,
 		"url":              a.URL,
+		"title":            a.Title,
 		"top_image":        a.TopImage,
+		"meta_img":         a.MetaImg,
 		"images":           a.Images,
 		"movies":           a.Movies,
+		"text":             a.Text,
+		"keywords":         a.Keywords,
+		"keyword_scores":   a.KeywordScores,
+		"meta_keywords":    a.MetaKeywords,
+		"tags":             a.Tags,
+		"authors":          a.Authors,
+		"publish_date":     publishDate,
+		"summary":          a.Summary,
+		"html":             a.HTML,
+		"article_html":     a.ArticleHTML,
+		"is_parsed":        a.IsParsed,
 		"meta_description": a.MetaDescription,
 		"meta_lang":        a.MetaLang,
-		"is_parsed":        a.IsParsed,
+		"meta_favicon":     a.MetaFavicon,
+		"meta_site_name":   a.MetaSiteName,
+		"meta_data":        a.MetaData,
+		"canonical_link":   a.CanonicalLink,
+		"categories":       categories,
+		"top_node_html":    topNodeHTML,
+		"doc_html":         docHTML,
+		"clean_doc_html":   cleanDocHTML,
+		"language":         a.GetLanguage().String(),
+		"bitcoins":         a.Bitcoins,
+		"md5s":             a.MD5s,
+		"sha1s":            a.SHA1s,
+		"sha256s":          a.SHA256s,
+		"sha512s":          a.SHA512s,
+		"domains":          a.Domains,
+		"emails":           a.Emails,
+		"ipv4s":            a.IPv4s,
+		"ipv6s":            a.IPv6s,
+		"other_urls":       a.OtherURLs,
+		"files":            a.Files,
+		"cves":             a.CVEs,
+		"capecs":           a.CAPECs,
+		"cwes":             a.CWEs,
+		"cpes":             a.CPEs,
 	}
 
-	// Convert to JSON (simple implementation)
-	jsonStr := "{"
-	first := true
-	for key, value := range articleData {
-		if !first {
-			jsonStr += ","
-		}
-		jsonStr += fmt.Sprintf("\"%s\":", key)
-		switch v := value.(type) {
-		case string:
-			jsonStr += fmt.Sprintf("\"%s\"", v)
-		case []string:
-			jsonStr += "["
-			for i, item := range v {
-				if i > 0 {
-					jsonStr += ","
-				}
-				jsonStr += fmt.Sprintf("\"%s\"", item)
-			}
-			jsonStr += "]"
-		case map[string]float64:
-			jsonStr += "{"
-			firstInner := true
-			for k, val := range v {
-				if !firstInner {
-					jsonStr += ","
-				}
-				jsonStr += fmt.Sprintf("\"%s\":%f", k, val)
-				firstInner = false
-			}
-			jsonStr += "}"
-		case *time.Time:
-			if v != nil {
-				jsonStr += fmt.Sprintf("\"%s\"", v.Format(time.RFC3339))
-			} else {
-				jsonStr += "null"
-			}
-		case bool:
-			if v {
-				jsonStr += "true"
-			} else {
-				jsonStr += "false"
-			}
-		default:
-			jsonStr += "null"
-		}
-		first = false
+	b, err := json.Marshal(articleData)
+	if err != nil {
+		return "", fmt.Errorf("error marshaling article to JSON: %w", err)
 	}
-	jsonStr += "}"
 
-	return jsonStr, nil
+	return string(b), nil
+}
+
+func (a *Article) ToSimpleJSON() (string, error) {
+	if err := a.ThrowIfNotParsedVerbose(); err != nil {
+		return "", fmt.Errorf("you must parse() an article first: %w", err)
+	}
+
+	// Build a simplified map containing key Article fields
+	articleData := map[string]interface{}{
+		"title":            a.Title,
+		"url":              a.URL,
+		"authors":          a.Authors,
+		"publish_date":     a.PublishDate,
+		"top_image":        a.TopImage,
+		"meta_description": a.MetaDescription,
+		"keywords":         a.Keywords,
+		"summary":          a.Summary,
+		"text":             a.Text,
+		"language":         a.GetLanguage().String(),
+		"bitcoins":         a.Bitcoins,
+		"md5s":             a.MD5s,
+		"sha1s":            a.SHA1s,
+		"sha256s":          a.SHA256s,
+		"sha512s":          a.SHA512s,
+		"domains":          a.Domains,
+		"emails":           a.Emails,
+		"ipv4s":            a.IPv4s,
+		"ipv6s":            a.IPv6s,
+		"other_urls":       a.OtherURLs,
+		"files":            a.Files,
+		"cves":             a.CVEs,
+		"capecs":           a.CAPECs,
+		"cwes":             a.CWEs,
+		"cpes":             a.CPEs,
+		"images":           a.Images,
+		"movies":           a.Movies,
+	}
+
+	b, err := json.Marshal(articleData)
+	if err != nil {
+		return "", fmt.Errorf("error marshaling article to JSON: %w", err)
+	}
+
+	return string(b), nil
 }
 
 // cleanKeyword filters keywords to ensure they are simple words with no special characters and minimum 3 characters
