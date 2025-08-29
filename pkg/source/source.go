@@ -112,7 +112,8 @@ func (s *DefaultSource) BuildWithParams(params BuildParams) error {
 	// onlyInPath := params.OnlyInPath
 	limitArticles := params.LimitArticles
 	if limitArticles <= 0 {
-		limitArticles = 5000
+		// default is intentionally unused here; limitArticles is currently unused elsewhere
+		_ = 5000
 	}
 	limitFeeds := params.LimitFeeds
 	if limitFeeds <= 0 {
@@ -176,7 +177,12 @@ func (s *DefaultSource) Download() error {
 		// Handle error - could log or set a flag
 		return fmt.Errorf("failed to download URL: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		err = resp.Body.Close()
+		if err != nil {
+			fmt.Printf("failed to close response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode >= 400 {
 		// Handle HTTP error
@@ -273,7 +279,10 @@ func (s *DefaultSource) DownloadCategories() {
 		}
 
 		htmlBytes, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		if err != nil {
+			continue
+		}
+		err = resp.Body.Close()
 		if err != nil {
 			continue
 		}
@@ -339,7 +348,10 @@ func (s *DefaultSource) GetFeeds(limitFeeds int) {
 		}
 
 		rssBytes, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		if err != nil {
+			continue
+		}
+		_ = resp.Body.Close()
 		if err != nil {
 			continue
 		}
@@ -614,7 +626,10 @@ func (s *DefaultSource) DownloadArticles() []newspaper.Article {
 		}
 
 		htmlBytes, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		if err != nil {
+			continue
+		}
+		_ = resp.Body.Close()
 		if err != nil {
 			continue
 		}

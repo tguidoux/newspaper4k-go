@@ -1,7 +1,6 @@
 package helpers
 
 import (
-	"net/http"
 	"testing"
 	"time"
 )
@@ -31,7 +30,7 @@ func TestCreateHTTPClient(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var client *http.Client = CreateHTTPClient(tt.timeoutSeconds)
+			client := CreateHTTPClient(tt.timeoutSeconds)
 			if client == nil {
 				t.Fatal("Expected non-nil client")
 			}
@@ -43,7 +42,7 @@ func TestCreateHTTPClient(t *testing.T) {
 }
 
 func TestCreateDefaultHTTPClient(t *testing.T) {
-	var client *http.Client = CreateDefaultHTTPClient()
+	client := CreateDefaultHTTPClient()
 	if client == nil {
 		t.Fatal("Expected non-nil client")
 	}

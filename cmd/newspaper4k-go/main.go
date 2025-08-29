@@ -74,6 +74,9 @@ func demonstrateURL() {
 	}
 }
 
+// Mark demonstrateURL as used to avoid unused function in linter (keeps demo code available)
+var _ = demonstrateURL
+
 //	func demonstrateArticleUsage() {
 //		// Sample HTML content for testing
 //		testHTML := `
@@ -283,7 +286,10 @@ func demonstrateSourceUsage() {
 
 	// Build the source with mock HTML
 	fmt.Printf("\n2. Building source...\n")
-	src.Build() // inputHTML=mockHTML, onlyHomepage=false, onlyInPath=false
+	if err := src.Build(); err != nil {
+		fmt.Printf("Error building source: %v\n", err)
+		return
+	}
 
 	fmt.Printf("   Download status: %t\n", src.IsDownloaded)
 	fmt.Printf("   Parse status: %t\n", src.IsParsed)
