@@ -26,33 +26,39 @@ package main
 
 import (
 	"fmt"
+
+	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
 	"github.com/tguidoux/newspaper4k-go/pkg/newspaper4k"
 )
 
 func main() {
-	// Extract article from URL
-	article, err := newspaper4k.NewArticleFromURL("https://example.com/article")
+	configuration := configuration.NewConfiguration()
+	extractors := newspaper4k.DefaultExtractors(configuration)
+	article, err := newspaper4k.NewArticleFromURL("https://www.lemonde.fr/m-styles/article/2025/08/29/marie-chioca-photographe-et-autrice-culinaire-je-me-suis-rendu-compte-que-je-ne-trouvais-pas-d-ouvrages-alliant-cuisine-gourmande-et-cuisine-saine-j-ai-donc-decide-de-les-ecrire_6637363_4497319.html")
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		fmt.Printf("Error fetching article: %v\n", err)
 		return
 	}
-
-	fmt.Printf("Title: %s\n", article.Title)
-	fmt.Printf("Authors: %v\n", article.Authors)
-	fmt.Printf("Text: %s\n", article.Text)
-	fmt.Printf("Publish Date: %v\n", article.PublishDate)
-
-	// Or extract from HTML string
-	html := `<html><body><h1>Test Article</h1><p>This is the content.</p></body></html>`
-	article2, err := newspaper4k.NewArticleFromHTML(html)
+	err = article.Build(extractors)
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		fmt.Printf("Error building article: %v\n", err)
 		return
 	}
+	fmt.Println(article.IsParsed)
 
-	fmt.Printf("Title: %s\n", article2.Title)
+	// Display results
+	jsonArticle, err := article.ToJSON()
+	if err != nil {
+		fmt.Printf("Error converting article to JSON: %v\n", err)
+		return
+	}
+	fmt.Println("Article fetched from URL and parsed:")
+	fmt.Println(jsonArticle)
 }
+
 ```
+
+More to see in the [examples](./examples) directory.
 
 ## Configuration
 
@@ -70,7 +76,7 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 
 ## Acknowledgments
 
-- This is a Go port of [newspaper4k](https://github.com/AndyTheFactory/newspaper4k) by [AndyTheFactory](https://github.com/AndyTheFactory)
+- This is a Go port of [newspaper4k](https://github.com/AndyTheFactory/newspaper4k) by [AndyTheFactory](https://github.com/AndyTheFactory), thanks to him for continuing the work of the original Python library.
 - Thanks to [codelucas](https://github.com/codelucas) for the original [newspaper](https://github.com/codelucas/newspaper) Python library
 - Thanks to all contributors and the Go community
 

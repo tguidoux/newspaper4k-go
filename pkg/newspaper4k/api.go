@@ -21,6 +21,7 @@ func DefaultExtractors(config *configuration.Configuration) []newspaper.Extracto
 		newspaper4k.NewCategoryExtractor(config),
 		newspaper4k.NewImageExtractor(config),
 		newspaper4k.NewVideoExtractor(),
+		newspaper4k.NewIOCsExtractor(config),
 	}
 }
 
@@ -52,40 +53,17 @@ func NewArticleFromRequest(req newspaper.ParseRequest) (*newspaper.Article, erro
 		return nil, fmt.Errorf("empty URL and empty InputHTML")
 	}
 
-	// Create the base article
-	art, err := NewArticle(req.URL)
+	parsedURL, err := urls.Parse(req.URL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("input url bad format: %w", err)
 	}
 
-	// Download if provided input HTML or no HTML
-	art.Config.DownloadOptions.InputHTML = req.InputHTML
-	art.Download()
-
-	art.Parse(req.Extractors)
-
-	art.NLP()
-
-	return art, nil
-}
-
-// NewArticle constructs the article class. Will not download or parse the article.
-func NewArticle(url string) (*newspaper.Article, error) {
-	// Set source URL if not provided
-	sourceURL := fmt.Sprintf("%s://%s", urls.GetScheme(url), urls.GetDomain(url))
-	preparedURL := urls.PrepareURL(url, sourceURL)
-
-	if sourceURL == "" {
-		return nil, fmt.Errorf("input url bad format")
-	}
-
-	article := &newspaper.Article{
+	// Create the base article
+	art := &newspaper.Article{
 		Config:        configuration.NewConfiguration(),
-		SourceURL:     sourceURL,
-		URL:           preparedURL,
-		OriginalURL:   preparedURL,
+		SourceURL:     "",
+		URL:           parsedURL.String(),
 		Title:         "",
-		ReadMoreLink:  "",
 		DownloadState: newspaper.NotStarted,
 		IsParsed:      false,
 		Images:        []string{},
@@ -96,9 +74,11 @@ func NewArticle(url string) (*newspaper.Article, error) {
 		Tags:          map[string]string{},
 		Authors:       []string{},
 		MetaData:      map[string]string{},
-		Categories:    []string{},
-		History:       []string{},
+		Categories:    []*urls.URL{},
 	}
 
-	return article, nil
+	// Download if provided input HTML or no HTML
+	art.Config.DownloadOptions.InputHTML = req.InputHTML
+
+	return art, nil
 }

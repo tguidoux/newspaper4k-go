@@ -1,18 +1,24 @@
 package newspaper
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/tguidoux/newspaper4k-go/internal/cleaner"
 	"github.com/tguidoux/newspaper4k-go/internal/nlp"
 	"github.com/tguidoux/newspaper4k-go/internal/parsers"
-	"github.com/tguidoux/newspaper4k-go/pkg/cleaner"
+	"github.com/tguidoux/newspaper4k-go/internal/resources/text"
+	"github.com/tguidoux/newspaper4k-go/internal/urls"
 	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
+	"github.com/tguidoux/newspaper4k-go/pkg/constants"
 	"golang.org/x/text/language"
 )
 
@@ -25,20 +31,17 @@ const (
 	Success        ArticleDownloadState = 2
 )
 
-// Article abstraction for newspaper.
+// Article abstraction for
 // This object fetches and holds information for a single article.
 type Article struct {
 	SourceURL            string               // URL to the main page of the news source
 	URL                  string               // The article link (may differ from original URL)
-	OriginalURL          string               // The original URL passed to the constructor
 	Title                string               // Parsed title of the article
-	ReadMoreLink         string               // XPath selector for the link to the full article
 	TopImage             string               // Top image URL of the article
 	MetaImg              string               // Image URL provided by metadata
 	Images               []string             // List of all image URLs in the article
 	Movies               []string             // List of video links in the article body
 	Text                 string               // Parsed version of the article body
-	TextCleaned          string               // Deprecated: same as Text
 	Keywords             []string             // Inferred list of keywords for this article
 	KeywordScores        map[string]float64   // Dictionary of keywords and their scores
 	MetaKeywords         []string             // List of keywords provided by the meta data
@@ -51,19 +54,33 @@ type Article struct {
 	IsParsed             bool                 // True if parse() has been called
 	DownloadState        ArticleDownloadState // Download state
 	DownloadExceptionMsg string               // Exception message if download() failed
-	History              []string             // Redirection history from requests
 	MetaDescription      string               // Description extracted from meta data
 	MetaLang             string               // Language extracted from meta data
 	MetaFavicon          string               // Website's favicon URL
 	MetaSiteName         string               // Website's name
 	MetaData             map[string]string    // Additional meta data from meta tags
 	CanonicalLink        string               // Canonical URL for the article
-	Categories           []string             // Extracted category URLs from the source
+	Categories           []*urls.URL          // Extracted category URLs from the source
 	TopNode              *goquery.Selection   // Top node of the original DOM tree (HTML element)
 	Doc                  *goquery.Document    // Full DOM of the downloaded HTML
 	CleanDoc             *goquery.Document    // Cleaned version of the DOM tree
 	Language             language.Tag         // Detected language of the article
 	Config               *configuration.Configuration
+	Bitcoins             []string
+	MD5s                 []string
+	SHA1s                []string
+	SHA256s              []string
+	SHA512s              []string
+	Domains              []string
+	Emails               []string
+	IPv4s                []string
+	IPv6s                []string
+	OtherURLs            []string
+	Files                []string
+	CVEs                 []string
+	CAPECs               []string
+	CWEs                 []string
+	CPEs                 []string
 }
 
 // ParseRequest represents parameters for creating and parsing an Article.
@@ -75,14 +92,25 @@ type ParseRequest struct {
 }
 
 // Build builds a lone article from a URL. Calls Download(), Parse(), and NLP() in succession.
-func (a *Article) Build(extractors []Extractor) {
-	a.Download()
-	a.Parse(extractors)
-	a.NLP()
+func (a *Article) Build(extractors []Extractor) error {
+	err := a.Download()
+	if err != nil {
+		return fmt.Errorf("error downloading article: %w", err)
+	}
+	err = a.Parse(extractors)
+	if err != nil {
+		return fmt.Errorf("error parsing article: %w", err)
+	}
+	err = a.NLP()
+	if err != nil {
+		return fmt.Errorf("error in NLP processing: %w", err)
+	}
+
+	return nil
 }
 
 // Download downloads the link's HTML content.
-func (a *Article) Download() *Article {
+func (a *Article) Download() error {
 
 	inputHTML := a.Config.DownloadOptions.InputHTML
 
@@ -96,16 +124,22 @@ func (a *Article) Download() *Article {
 		if err != nil {
 			a.DownloadState = FailedResponse
 			a.DownloadExceptionMsg = err.Error()
-			return a
+			return fmt.Errorf("error performing HTTP GET request: %w", err)
 		}
-		defer func() { _ = resp.Body.Close() }()
+		defer func() {
+			err = resp.Body.Close()
+
+			if err != nil {
+				fmt.Println("Error closing response body:", err)
+			}
+		}()
 
 		// Read HTML
 		htmlBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
 			a.DownloadState = FailedResponse
 			a.DownloadExceptionMsg = err.Error()
-			return a
+			return fmt.Errorf("error reading response body: %w", err)
 		}
 		htmlContent := string(htmlBytes)
 
@@ -114,7 +148,7 @@ func (a *Article) Download() *Article {
 		if err != nil {
 			a.DownloadState = FailedResponse
 			a.DownloadExceptionMsg = err.Error()
-			return a
+			return fmt.Errorf("error parsing downloaded HTML: %w", err)
 		}
 		a.Doc = doc
 		a.HTML = htmlContent
@@ -127,30 +161,33 @@ func (a *Article) Download() *Article {
 		if err != nil {
 			a.DownloadState = FailedResponse
 			a.DownloadExceptionMsg = err.Error()
-			return a
+			return fmt.Errorf("error parsing provided HTML: %w", err)
 		}
 		a.Doc = doc
 		a.DownloadState = Success
 	}
 
-	return a
+	return nil
 }
 
 // Parse parses the previously downloaded article.
-func (a *Article) Parse(extractors []Extractor) *Article {
+func (a *Article) Parse(extractors []Extractor) error {
 	if err := a.ThrowIfNotDownloadedVerbose(); err != nil {
 		// Handle error, perhaps log or return
-		return a
+		return fmt.Errorf("article not downloaded: %w", err)
 	}
 
 	// Run extractors
 	for _, ext := range extractors {
-		_ = ext.Parse(a)
+		err := ext.Parse(a)
+		if err != nil {
+			return fmt.Errorf("error in extractor %T: %w", ext, err)
+		}
 	}
 
 	// Clean the top node if it exists
 	if a.TopNode != nil {
-		documentCleaner := cleaner.NewDocumentCleaner(a.Config)
+		documentCleaner := cleaner.NewDocumentCleaner()
 		a.TopNode = documentCleaner.Clean(a.TopNode)
 		// Update article HTML and text from cleaned node
 		a.ArticleHTML = parsers.OuterHTML(a.TopNode)
@@ -158,21 +195,18 @@ func (a *Article) Parse(extractors []Extractor) *Article {
 	}
 
 	a.IsParsed = true
-	return a
+	return nil
 }
 
 // NLP performs keyword extraction and summarization.
-func (a *Article) NLP() {
+func (a *Article) NLP() error {
 	if err := a.ThrowIfNotParsedVerbose(); err != nil {
 		// Handle error
-		return
+		return fmt.Errorf("article not parsed: %w", err)
 	}
 
 	// Get language for stop words
 	language := a.GetLanguage().String()
-	if language == "" {
-		language = "en" // Default to English
-	}
 
 	// Create StopWords instance
 	stopwords, err := nlp.NewStopWords(language)
@@ -180,7 +214,7 @@ func (a *Article) NLP() {
 		// Fallback to basic method if StopWords creation fails
 		a.extractKeywordsBasic()
 		a.generateSummaryBasic()
-		return
+		return nil
 	}
 
 	// Extract keywords using NLP package
@@ -188,6 +222,8 @@ func (a *Article) NLP() {
 
 	// Generate summary using NLP package
 	a.generateSummaryWithNLP(stopwords)
+
+	return nil
 }
 
 // extractKeywordsWithNLP extracts keywords using the NLP package
@@ -457,10 +493,7 @@ func (a *Article) getStopWords() map[string]bool {
 	stopWords := make(map[string]bool)
 
 	// Try to load stop words from the text package based on article's language
-	language := a.MetaLang
-	if language == "" {
-		language = "en" // Default to English
-	}
+	language := a.GetLanguage().String()
 
 	stopWordsSlice := nlp.GetStopWordsForLanguage(language)
 
@@ -472,13 +505,7 @@ func (a *Article) getStopWords() map[string]bool {
 
 	// Fallback to hardcoded English stop words if no stopwords found
 	if len(stopWords) == 0 {
-		englishStopWords := []string{
-			"the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of",
-			"with", "by", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had",
-			"do", "does", "did", "will", "would", "could", "should", "may", "might", "must", "can", "shall",
-			"this", "that", "these", "those", "i", "you", "he", "she", "it", "we", "they", "me",
-			"him", "her", "us", "them", "my", "your", "his", "its", "our", "their",
-		}
+		englishStopWords := text.StopwordsEN
 		for _, word := range englishStopWords {
 			stopWords[word] = true
 		}
@@ -497,35 +524,9 @@ func (a *Article) GetTitle() string {
 	return a.Title
 }
 
-// SetTitle sets the title of the article.
-func (a *Article) SetTitle(value string) {
-	if value != "" {
-		if len(value) > a.Config.MaxTitle {
-			a.Title = value[:a.Config.MaxTitle]
-		} else {
-			a.Title = value
-		}
-	} else {
-		a.Title = ""
-	}
-}
-
 // GetText returns the text content of the article.
 func (a *Article) GetText() string {
 	return a.Text
-}
-
-// SetText sets the text of the article.
-func (a *Article) SetText(value string) {
-	if value != "" {
-		if len(value) > a.Config.MaxText {
-			a.Text = value[:a.Config.MaxText]
-		} else {
-			a.Text = value
-		}
-	} else {
-		a.Text = ""
-	}
 }
 
 // GetHTML returns the HTML content of the article.
@@ -533,32 +534,9 @@ func (a *Article) GetHTML() string {
 	return a.HTML
 }
 
-// SetHTML sets the HTML content of the article.
-func (a *Article) SetHTML(value string) {
-	a.DownloadState = Success
-	if value != "" {
-		a.HTML = value
-	} else {
-		a.HTML = ""
-	}
-}
-
 // GetSummary returns the summary of the article.
 func (a *Article) GetSummary() string {
 	return a.Summary
-}
-
-// SetSummary sets the summary of the article.
-func (a *Article) SetSummary(value string) {
-	if value != "" {
-		if len(value) > a.Config.MaxSummary {
-			a.Summary = value[:a.Config.MaxSummary]
-		} else {
-			a.Summary = value
-		}
-	} else {
-		a.Summary = ""
-	}
 }
 
 // ThrowIfNotDownloadedVerbose checks if the article has been downloaded.
@@ -583,7 +561,9 @@ func (a *Article) ThrowIfNotParsedVerbose() error {
 // IsValidURL checks if the URL is valid.
 func (a *Article) IsValidURL() bool {
 	// Implement URL validation
-	return strings.HasPrefix(a.URL, "http")
+	isLikelyArticleURL := IsLikelyArticleURL(a.URL)
+	parsedURL, err := urls.Parse(a.URL)
+	return isLikelyArticleURL && err == nil && parsedURL.Scheme != "" && parsedURL.Domain != ""
 }
 
 // IsValidBody checks if the article body is valid.
@@ -606,6 +586,17 @@ func (a *Article) GetTopKeywordsList() []string {
 }
 
 func (a *Article) GetLanguage() language.Tag {
+	// If language is not set, try to detect from MetaLang
+	if a.Language == language.Und && a.MetaLang != "" {
+		tag, err := language.Parse(a.MetaLang)
+		if err == nil {
+			a.Language = tag
+		}
+	}
+	// Fallback to English if still undefined
+	if a.Language == language.Und {
+		a.Language = language.English
+	}
 	return a.Language
 }
 
@@ -616,7 +607,7 @@ func (a *Article) SetLanguage(lang language.Tag) {
 // GetCleanDoc returns the cleaned version of the document
 func (a *Article) GetCleanDoc() *goquery.Document {
 	if a.CleanDoc == nil && a.Doc != nil {
-		documentCleaner := cleaner.NewDocumentCleaner(a.Config)
+		documentCleaner := cleaner.NewDocumentCleaner()
 		// Clone the document for cleaning
 		docHTML := parsers.OuterHTML(a.Doc.Find("html").First())
 		var err error
@@ -640,81 +631,148 @@ func (a *Article) GetCleanDoc() *goquery.Document {
 }
 
 // ToJSON creates a JSON string from the article data
-func (a *Article) ToJSON() (string, error) {
+func (a *Article) ToFullJSON() (string, error) {
 	if err := a.ThrowIfNotParsedVerbose(); err != nil {
-		return "", err
+		return "", fmt.Errorf("you must parse() an article first: %w", err)
 	}
 
-	// Create a map with the most important article data
+	// Prepare serializable representations for complex fields
+	var topNodeHTML string
+	if a.TopNode != nil {
+		topNodeHTML = parsers.OuterHTML(a.TopNode)
+	}
+
+	var docHTML string
+	if a.Doc != nil {
+		if sel := a.Doc.Find("html").First(); sel != nil {
+			docHTML = parsers.OuterHTML(sel)
+		}
+	}
+
+	var cleanDocHTML string
+	if a.CleanDoc != nil {
+		if sel := a.CleanDoc.Find("html").First(); sel != nil {
+			cleanDocHTML = parsers.OuterHTML(sel)
+		}
+	}
+
+	// Convert categories to string URLs
+	var categories []string
+	if len(a.Categories) > 0 {
+		categories = make([]string, 0, len(a.Categories))
+		for _, c := range a.Categories {
+			if c != nil && c.URL != nil {
+				categories = append(categories, c.String())
+			}
+		}
+	}
+
+	// Format publish date
+	var publishDate interface{}
+	if a.PublishDate != nil {
+		publishDate = a.PublishDate.Format(time.RFC3339)
+	} else {
+		publishDate = nil
+	}
+
+	// Build a full map containing all Article fields (serialized)
 	articleData := map[string]interface{}{
-		"title":            a.Title,
-		"text":             a.Text,
-		"authors":          a.Authors,
-		"publish_date":     a.PublishDate,
-		"summary":          a.Summary,
-		"keywords":         a.Keywords,
-		"keyword_scores":   a.KeywordScores,
 		"source_url":       a.SourceURL,
 		"url":              a.URL,
+		"title":            a.Title,
 		"top_image":        a.TopImage,
+		"meta_img":         a.MetaImg,
 		"images":           a.Images,
 		"movies":           a.Movies,
+		"text":             a.Text,
+		"keywords":         a.Keywords,
+		"keyword_scores":   a.KeywordScores,
+		"meta_keywords":    a.MetaKeywords,
+		"tags":             a.Tags,
+		"authors":          a.Authors,
+		"publish_date":     publishDate,
+		"summary":          a.Summary,
+		"html":             a.HTML,
+		"article_html":     a.ArticleHTML,
+		"is_parsed":        a.IsParsed,
 		"meta_description": a.MetaDescription,
 		"meta_lang":        a.MetaLang,
-		"is_parsed":        a.IsParsed,
+		"meta_favicon":     a.MetaFavicon,
+		"meta_site_name":   a.MetaSiteName,
+		"meta_data":        a.MetaData,
+		"canonical_link":   a.CanonicalLink,
+		"categories":       categories,
+		"top_node_html":    topNodeHTML,
+		"doc_html":         docHTML,
+		"clean_doc_html":   cleanDocHTML,
+		"language":         a.GetLanguage().String(),
+		"bitcoins":         a.Bitcoins,
+		"md5s":             a.MD5s,
+		"sha1s":            a.SHA1s,
+		"sha256s":          a.SHA256s,
+		"sha512s":          a.SHA512s,
+		"domains":          a.Domains,
+		"emails":           a.Emails,
+		"ipv4s":            a.IPv4s,
+		"ipv6s":            a.IPv6s,
+		"other_urls":       a.OtherURLs,
+		"files":            a.Files,
+		"cves":             a.CVEs,
+		"capecs":           a.CAPECs,
+		"cwes":             a.CWEs,
+		"cpes":             a.CPEs,
 	}
 
-	// Convert to JSON (simple implementation)
-	jsonStr := "{"
-	first := true
-	for key, value := range articleData {
-		if !first {
-			jsonStr += ","
-		}
-		jsonStr += fmt.Sprintf("\"%s\":", key)
-		switch v := value.(type) {
-		case string:
-			jsonStr += fmt.Sprintf("\"%s\"", v)
-		case []string:
-			jsonStr += "["
-			for i, item := range v {
-				if i > 0 {
-					jsonStr += ","
-				}
-				jsonStr += fmt.Sprintf("\"%s\"", item)
-			}
-			jsonStr += "]"
-		case map[string]float64:
-			jsonStr += "{"
-			firstInner := true
-			for k, val := range v {
-				if !firstInner {
-					jsonStr += ","
-				}
-				jsonStr += fmt.Sprintf("\"%s\":%f", k, val)
-				firstInner = false
-			}
-			jsonStr += "}"
-		case *time.Time:
-			if v != nil {
-				jsonStr += fmt.Sprintf("\"%s\"", v.Format(time.RFC3339))
-			} else {
-				jsonStr += "null"
-			}
-		case bool:
-			if v {
-				jsonStr += "true"
-			} else {
-				jsonStr += "false"
-			}
-		default:
-			jsonStr += "null"
-		}
-		first = false
+	b, err := json.Marshal(articleData)
+	if err != nil {
+		return "", fmt.Errorf("error marshaling article to JSON: %w", err)
 	}
-	jsonStr += "}"
 
-	return jsonStr, nil
+	return string(b), nil
+}
+
+func (a *Article) ToJSON() (string, error) {
+	if err := a.ThrowIfNotParsedVerbose(); err != nil {
+		return "", fmt.Errorf("you must parse() an article first: %w", err)
+	}
+
+	// Build a simplified map containing key Article fields
+	articleData := map[string]interface{}{
+		"title":            a.Title,
+		"url":              a.URL,
+		"authors":          a.Authors,
+		"publish_date":     a.PublishDate,
+		"top_image":        a.TopImage,
+		"meta_description": a.MetaDescription,
+		"keywords":         a.Keywords,
+		"summary":          a.Summary,
+		"text":             a.Text,
+		"language":         a.GetLanguage().String(),
+		"bitcoins":         a.Bitcoins,
+		"md5s":             a.MD5s,
+		"sha1s":            a.SHA1s,
+		"sha256s":          a.SHA256s,
+		"sha512s":          a.SHA512s,
+		"domains":          a.Domains,
+		"emails":           a.Emails,
+		"ipv4s":            a.IPv4s,
+		"ipv6s":            a.IPv6s,
+		"other_urls":       a.OtherURLs,
+		"files":            a.Files,
+		"cves":             a.CVEs,
+		"capecs":           a.CAPECs,
+		"cwes":             a.CWEs,
+		"cpes":             a.CPEs,
+		"images":           a.Images,
+		"movies":           a.Movies,
+	}
+
+	b, err := json.Marshal(articleData)
+	if err != nil {
+		return "", fmt.Errorf("error marshaling article to JSON: %w", err)
+	}
+
+	return string(b), nil
 }
 
 // cleanKeyword filters keywords to ensure they are simple words with no special characters and minimum 3 characters
@@ -754,4 +812,64 @@ func (a *Article) filterKeywords(keywordScores map[string]float64) map[string]fl
 	}
 
 	return filtered
+}
+
+func (a *Article) String() string {
+	if err := a.ThrowIfNotParsedVerbose(); err != nil {
+		return fmt.Sprintf("Article not parsed: %v", err)
+	}
+
+	return fmt.Sprintf("Article Title: %s\nURL: %s\nAuthors: %v\nPublish Date: %v\nTop Image: %s\nMeta Description: %s\nKeywords: %v\nSummary: %s\nText: %s",
+		a.Title,
+		a.URL,
+		a.Authors,
+		a.PublishDate,
+		a.TopImage,
+		a.MetaDescription,
+		a.Keywords,
+		a.Summary,
+		a.Text)
+}
+
+// IsLikelyArticleURL checks if a URL is likely to be an article rather than a navigation link
+func IsLikelyArticleURL(urlStr string) bool {
+	// Skip obvious navigation/category
+
+	parsedURL, err := url.Parse(urlStr)
+	if err != nil {
+		return false
+	}
+
+	// is contains any stopwords from URL_STOPWORDS
+	for _, stopword := range constants.COMMON_NOT_ARTICLE_URL_STOPWORDS {
+		if strings.Contains(parsedURL.Path, stopword) || strings.HasSuffix(parsedURL.Path, "/"+stopword) {
+			return false
+		}
+	}
+
+	// For Hacker News, articles have /item?id= pattern
+	if strings.Contains(urlStr, "/item?id=") {
+		return true
+	}
+
+	// For other sites, check for common article patterns, URL_GOODWORDS
+	for _, goodword := range constants.COMMON_ARTICLE_URL_GOODWORDS {
+		if strings.Contains(parsedURL.Path, goodword) || strings.HasSuffix(parsedURL.Path, "/"+goodword) {
+			return true
+		}
+	}
+
+	// Check if URL has a date-like pattern (YYYY/MM/DD or similar)
+	datePattern := regexp.MustCompile(`/(\d{4})/(\d{1,2})/(\d{1,2})/`)
+	if datePattern.MatchString(urlStr) {
+		return true
+	}
+
+	// If it has query parameters, it might be an article
+	if parsedURL.RawQuery != "" {
+		return true
+	}
+
+	// Default: if it's not obviously a category/navigation URL, consider it an article
+	return false
 }

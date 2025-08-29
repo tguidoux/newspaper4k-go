@@ -36,7 +36,6 @@ type Configuration struct {
 	AllowBinaryContent   bool
 	IgnoredContentTypes  map[string]string
 	UseCachedCategories  bool
-	Extractors           []any
 	DownloadOptions      DownloadOptions
 }
 
@@ -83,7 +82,6 @@ func NewConfiguration() *Configuration {
 		AllowBinaryContent:   false,
 		IgnoredContentTypes:  map[string]string{},
 		UseCachedCategories:  true,
-		Extractors:           []any{},
 		DownloadOptions:      DownloadOptions{InputHTML: ""},
 	}
 }

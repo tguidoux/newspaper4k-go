@@ -10,6 +10,7 @@ import (
 	"github.com/araddon/dateparse"
 	"github.com/tguidoux/newspaper4k-go/internal/parsers"
 	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
+	"github.com/tguidoux/newspaper4k-go/pkg/constants"
 	"github.com/tguidoux/newspaper4k-go/pkg/newspaper"
 )
 
@@ -36,21 +37,16 @@ func NewPubdateExtractor(config *configuration.Configuration) *PubdateExtractor 
 func (p *PubdateExtractor) Parse(a *newspaper.Article) error {
 	p.pubdate = nil
 
-	var doc *goquery.Document
-	var err error
-
-	// Use Doc field if available, otherwise parse HTML using parser
-	if a.Doc != nil {
-		doc = a.Doc
-	} else {
-		doc, err = parsers.FromString(a.HTML)
+	if a.Doc == nil {
+		doc, err := parsers.FromString(a.HTML)
 		if err != nil {
 			return err
 		}
+		a.Doc = doc
 	}
 
 	// Call the existing parsing logic
-	pubdate := p.parseWithDoc(a.URL, doc)
+	pubdate := p.parseWithDoc(a.URL, a.Doc)
 	a.PublishDate = pubdate
 	return nil
 }
@@ -100,7 +96,7 @@ func (p *PubdateExtractor) parseWithDoc(articleURL string, doc *goquery.Document
 	})
 
 	// Strategy 4: Pubdate from meta tags using parser
-	for _, metaInfo := range PUBLISH_DATE_META_INFO {
+	for _, metaInfo := range constants.PUBLISH_DATE_META_INFO {
 		metaElements := parsers.GetMetatags(doc.Selection, metaInfo)
 		for _, metaElement := range metaElements {
 			content := parsers.GetAttribute(metaElement, "content", nil, "")

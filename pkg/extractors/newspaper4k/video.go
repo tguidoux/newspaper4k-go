@@ -7,6 +7,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/tguidoux/newspaper4k-go/internal/parsers"
 	"github.com/tguidoux/newspaper4k-go/internal/urls"
+	"github.com/tguidoux/newspaper4k-go/pkg/constants"
 	"github.com/tguidoux/newspaper4k-go/pkg/newspaper"
 )
 
@@ -20,20 +21,14 @@ func NewVideoExtractor() *VideoExtractor {
 
 // Parse extracts videos from the article
 func (ve *VideoExtractor) Parse(a *newspaper.Article) error {
-	var doc *goquery.Document
-	var err error
-
-	// Use Doc field if available, otherwise parse HTML using parser
-	if a.Doc != nil {
-		doc = a.Doc
-	} else {
-		doc, err = parsers.FromString(a.HTML)
+	if a.Doc == nil {
+		doc, err := parsers.FromString(a.HTML)
 		if err != nil {
 			return err
 		}
+		a.Doc = doc
 	}
-
-	videos := ve.getVideos(doc, a.URL)
+	videos := ve.getVideos(a.Doc, a.URL)
 	if len(videos) > 0 {
 		a.Movies = videos
 	}
@@ -49,7 +44,7 @@ func (ve *VideoExtractor) getVideos(doc *goquery.Document, articleURL string) []
 	for _, element := range videoElements {
 		src := parsers.GetAttribute(element, "src", nil, "")
 		if srcStr, ok := src.(string); ok && srcStr != "" {
-			videoURL := urls.URLJoinIfValid(articleURL, srcStr)
+			videoURL := urls.JoinURL(articleURL, srcStr)
 			if videoURL != "" {
 				videos = append(videos, videoURL)
 			}
@@ -61,7 +56,7 @@ func (ve *VideoExtractor) getVideos(doc *goquery.Document, articleURL string) []
 	for _, element := range iframeElements {
 		src := parsers.GetAttribute(element, "src", nil, "")
 		if srcStr, ok := src.(string); ok && srcStr != "" {
-			videoURL := urls.URLJoinIfValid(articleURL, srcStr)
+			videoURL := urls.JoinURL(articleURL, srcStr)
 			if videoURL != "" && ve.isVideoProvider(ve.getProvider(srcStr)) {
 				videos = append(videos, videoURL)
 			}
@@ -73,7 +68,7 @@ func (ve *VideoExtractor) getVideos(doc *goquery.Document, articleURL string) []
 	for _, element := range embedElements {
 		src := parsers.GetAttribute(element, "src", nil, "")
 		if srcStr, ok := src.(string); ok && srcStr != "" {
-			videoURL := urls.URLJoinIfValid(articleURL, srcStr)
+			videoURL := urls.JoinURL(articleURL, srcStr)
 			if videoURL != "" && ve.isVideoProvider(ve.getProvider(srcStr)) {
 				videos = append(videos, videoURL)
 			}
@@ -85,7 +80,7 @@ func (ve *VideoExtractor) getVideos(doc *goquery.Document, articleURL string) []
 	for _, element := range objectElements {
 		data := parsers.GetAttribute(element, "data", nil, "")
 		if dataStr, ok := data.(string); ok && dataStr != "" {
-			videoURL := urls.URLJoinIfValid(articleURL, dataStr)
+			videoURL := urls.JoinURL(articleURL, dataStr)
 			if videoURL != "" && ve.isVideoProvider(ve.getProvider(dataStr)) {
 				videos = append(videos, videoURL)
 			}
@@ -122,7 +117,7 @@ func (ve *VideoExtractor) getVideosFromJSONLD(doc *goquery.Document, articleURL 
 
 		for _, obj := range objects {
 			if contentURL, ok := obj["contentUrl"].(string); ok && contentURL != "" {
-				videoURL := urls.URLJoinIfValid(articleURL, contentURL)
+				videoURL := urls.JoinURL(articleURL, contentURL)
 				if videoURL != "" {
 					videos = append(videos, videoURL)
 				}
@@ -144,7 +139,7 @@ func (ve *VideoExtractor) getProvider(videoURL string) string {
 	host = strings.TrimPrefix(host, "www.")
 
 	// Check for known providers
-	for _, provider := range VIDEO_PROVIDERS {
+	for _, provider := range constants.VIDEO_PROVIDERS {
 		if strings.Contains(host, provider) {
 			return provider
 		}
@@ -155,7 +150,7 @@ func (ve *VideoExtractor) getProvider(videoURL string) string {
 
 // isVideoProvider checks if the provider is a known video provider
 func (ve *VideoExtractor) isVideoProvider(provider string) bool {
-	for _, p := range VIDEO_PROVIDERS {
+	for _, p := range constants.VIDEO_PROVIDERS {
 		if provider == p {
 			return true
 		}

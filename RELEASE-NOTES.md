@@ -1,6 +1,6 @@
 # newspaper4k-go release notes
 
-## 2025-08-28 - v1.0.0
+## 2025-08-28 - 0.1.0
 
 ### Added/Refactoring
 

@@ -4,11 +4,11 @@ import (
 	"fmt"
 
 	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
-	"github.com/tguidoux/newspaper4k-go/pkg/newspaper4k"
 	"github.com/tguidoux/newspaper4k-go/pkg/source"
 )
 
 func main() {
+
 	config := configuration.NewConfiguration()
 
 	// Example 1: Create a source
@@ -58,26 +58,4 @@ func main() {
 	fmt.Println("4. Getting articles:")
 	articles := src.GetArticles(10000, false)
 	fmt.Printf("   Articles retrieved (not built): %d\n", len(articles))
-
-	fmt.Println("5. Show few articles:")
-	extractors := newspaper4k.DefaultExtractors(config)
-
-	for i, article := range articles {
-		if i >= 5 {
-			break
-		}
-		err := article.Build(extractors)
-		if err != nil {
-			fmt.Printf("Error building article: %v\n", err)
-			continue
-		}
-		fmt.Printf("   %d. %s\n", i+1, article.Title)
-		fmt.Printf("      URL: %s\n", article.URL)
-		fmt.Printf("      Authors: %v\n", article.Authors)
-		fmt.Printf("      Text (first 200 chars): %.200s...\n", article.Text)
-		fmt.Printf("      Top Image: %v\n", article.TopImage)
-		fmt.Printf("      Keywords: %v\n", article.Keywords)
-		fmt.Printf("      Summary: %v\n", article.Summary)
-	}
-
 }

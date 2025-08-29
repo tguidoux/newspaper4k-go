@@ -6,7 +6,6 @@ import (
 
 	"github.com/PuerkitoBio/goquery"
 	"github.com/tguidoux/newspaper4k-go/internal/parsers"
-	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
 )
 
 // Cleaner interface defines methods for cleaning HTML documents
@@ -17,7 +16,6 @@ type Cleaner interface {
 
 // DocumentCleaner provides methods to clean and manipulate HTML documents
 type DocumentCleaner struct {
-	config                 *configuration.Configuration
 	removeNodesRe          *regexp.Regexp
 	removeNodesRelatedRe   *regexp.Regexp
 	divToPRe               *regexp.Regexp
@@ -31,10 +29,9 @@ type DocumentCleaner struct {
 	containsArticle        string
 }
 
-// NewDocumentCleaner creates a new DocumentCleaner with the given configuration
-func NewDocumentCleaner(config *configuration.Configuration) *DocumentCleaner {
+// NewDocumentCleaner creates a new DocumentCleaner
+func NewDocumentCleaner() *DocumentCleaner {
 	dc := &DocumentCleaner{
-		config: config,
 		removeNodesRe: regexp.MustCompile(
 			"^side$|combx|retweet|mediaarticlerelated|menucontainer|" +
 				"navbar|storytopbar-bucket|utility-bar|inline-share-tools|" +

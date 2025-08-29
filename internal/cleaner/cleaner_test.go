@@ -5,22 +5,17 @@ import (
 	"testing"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
 )
 
 func TestNewDocumentCleaner(t *testing.T) {
-	config := &configuration.Configuration{}
-	dc := NewDocumentCleaner(config)
+	dc := NewDocumentCleaner()
 	if dc == nil {
 		t.Fatal("NewDocumentCleaner returned nil")
-	}
-	if dc.config != config {
-		t.Error("Config not set correctly")
 	}
 }
 
 func TestCleanWhitespace(t *testing.T) {
-	dc := NewDocumentCleaner(&configuration.Configuration{})
+	dc := NewDocumentCleaner()
 	input := "Hello\tworld\n\nThis is a test\n"
 	expected := "Hello world\n\nThis is a test"
 	result := dc.CleanWhitespace(input)
@@ -30,7 +25,7 @@ func TestCleanWhitespace(t *testing.T) {
 }
 
 func TestClean(t *testing.T) {
-	dc := NewDocumentCleaner(&configuration.Configuration{})
+	dc := NewDocumentCleaner()
 	html := `<html><body class="test-class"><script>alert('test')</script><p>Hello <span>world</span></p><em>italic</em><em><img src="test.jpg"/></em></body></html>`
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
@@ -60,7 +55,7 @@ func TestClean(t *testing.T) {
 }
 
 func TestCleanBodyClasses(t *testing.T) {
-	dc := NewDocumentCleaner(&configuration.Configuration{})
+	dc := NewDocumentCleaner()
 	html := `<html><body class="test-class"><p>Content</p></body></html>`
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
@@ -73,7 +68,7 @@ func TestCleanBodyClasses(t *testing.T) {
 }
 
 func TestCleanArticleTags(t *testing.T) {
-	dc := NewDocumentCleaner(&configuration.Configuration{})
+	dc := NewDocumentCleaner()
 	html := `<html><body><article id="art" class="art-class" name="art-name"><p>Content</p></article></body></html>`
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
@@ -87,7 +82,7 @@ func TestCleanArticleTags(t *testing.T) {
 }
 
 func TestCleanEmTags(t *testing.T) {
-	dc := NewDocumentCleaner(&configuration.Configuration{})
+	dc := NewDocumentCleaner()
 	html := `<html><body><em>italic</em><em><img src="test.jpg"/></em></body></html>`
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
@@ -100,7 +95,7 @@ func TestCleanEmTags(t *testing.T) {
 }
 
 func TestRemoveScriptsStyles(t *testing.T) {
-	dc := NewDocumentCleaner(&configuration.Configuration{})
+	dc := NewDocumentCleaner()
 	html := `<html><body><script>js</script><style>css</style><p>Content</p></body></html>`
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
@@ -113,7 +108,7 @@ func TestRemoveScriptsStyles(t *testing.T) {
 }
 
 func TestCleanBadTags(t *testing.T) {
-	dc := NewDocumentCleaner(&configuration.Configuration{})
+	dc := NewDocumentCleaner()
 	html := `<html><body><aside>aside</aside><nav>nav</nav><p>Content</p></body></html>`
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
@@ -126,7 +121,7 @@ func TestCleanBadTags(t *testing.T) {
 }
 
 func TestRemoveNodesRegex(t *testing.T) {
-	dc := NewDocumentCleaner(&configuration.Configuration{})
+	dc := NewDocumentCleaner()
 	html := `<html><body><div id="facebook">fb</div><p>Content</p></body></html>`
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {
@@ -139,7 +134,7 @@ func TestRemoveNodesRegex(t *testing.T) {
 }
 
 func TestCleanParaSpans(t *testing.T) {
-	dc := NewDocumentCleaner(&configuration.Configuration{})
+	dc := NewDocumentCleaner()
 	html := `<html><body><p>Hello <span>world</span></p></body></html>`
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
 	if err != nil {

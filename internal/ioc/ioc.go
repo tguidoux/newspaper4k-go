@@ -3,21 +3,9 @@ package ioc
 import (
 	"context"
 	"io"
+
+	"github.com/tguidoux/newspaper4k-go/internal/helpers"
 )
-
-// uniqueStrings returns the unique elements from the provided slice.
-func uniqueStrings(slice []string) []string {
-	m := make(map[string]struct{}, len(slice))
-	for _, s := range slice {
-		m[s] = struct{}{}
-	}
-
-	out := make([]string, 0, len(m))
-	for s := range m {
-		out = append(out, s)
-	}
-	return out
-}
 
 // ParseIOC parses a single IOC and returns the highest-priority IOC found.
 // For example, an email contains a domain; the email (higher priority) is returned.
@@ -38,7 +26,7 @@ func ExtractIOCs(data string, getFangedIOCs bool) []*IOC {
 	var iocs []*IOC
 
 	for t, regex := range iocRegexes {
-		matches := uniqueStrings(regex.FindAllString(data, -1))
+		matches := helpers.UniqueStringsSimple(regex.FindAllString(data, -1))
 		for _, m := range matches {
 			i := &IOC{IOC: m, Type: t}
 			if !i.isFanged() || getFangedIOCs {
