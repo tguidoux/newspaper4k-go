@@ -4,16 +4,19 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/tguidoux/newspaper4k-go/internal/cleaner"
 	"github.com/tguidoux/newspaper4k-go/internal/nlp"
 	"github.com/tguidoux/newspaper4k-go/internal/parsers"
 	"github.com/tguidoux/newspaper4k-go/internal/urls"
-	"github.com/tguidoux/newspaper4k-go/pkg/cleaner"
 	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
+	"github.com/tguidoux/newspaper4k-go/pkg/constants"
 	"golang.org/x/text/language"
 )
 
@@ -26,7 +29,7 @@ const (
 	Success        ArticleDownloadState = 2
 )
 
-// Article abstraction for newspaper.
+// Article abstraction for
 // This object fetches and holds information for a single article.
 type Article struct {
 	SourceURL            string               // URL to the main page of the news source
@@ -74,8 +77,6 @@ type ParseRequest struct {
 	Extractors    []Extractor
 	InputHTML     string
 }
-
-// newspaper.Article does not satisfy comparablecompilerInvalidTypeArg
 
 // Build builds a lone article from a URL. Calls Download(), Parse(), and NLP() in succession.
 func (a *Article) Build(extractors []Extractor) {
@@ -153,7 +154,7 @@ func (a *Article) Parse(extractors []Extractor) *Article {
 
 	// Clean the top node if it exists
 	if a.TopNode != nil {
-		documentCleaner := cleaner.NewDocumentCleaner(a.Config)
+		documentCleaner := cleaner.NewDocumentCleaner()
 		a.TopNode = documentCleaner.Clean(a.TopNode)
 		// Update article HTML and text from cleaned node
 		a.ArticleHTML = parsers.OuterHTML(a.TopNode)
@@ -586,7 +587,7 @@ func (a *Article) ThrowIfNotParsedVerbose() error {
 // IsValidURL checks if the URL is valid.
 func (a *Article) IsValidURL() bool {
 	// Implement URL validation
-	return urls.ValidURL(a.URL, false)
+	return true // TODO: Add actual validation logic from urls.IsValidNewsArticleURL(...)
 }
 
 // IsValidBody checks if the article body is valid.
@@ -619,7 +620,7 @@ func (a *Article) SetLanguage(lang language.Tag) {
 // GetCleanDoc returns the cleaned version of the document
 func (a *Article) GetCleanDoc() *goquery.Document {
 	if a.CleanDoc == nil && a.Doc != nil {
-		documentCleaner := cleaner.NewDocumentCleaner(a.Config)
+		documentCleaner := cleaner.NewDocumentCleaner()
 		// Clone the document for cleaning
 		docHTML := parsers.OuterHTML(a.Doc.Find("html").First())
 		var err error
@@ -757,4 +758,64 @@ func (a *Article) filterKeywords(keywordScores map[string]float64) map[string]fl
 	}
 
 	return filtered
+}
+
+func (a *Article) String() string {
+	if err := a.ThrowIfNotParsedVerbose(); err != nil {
+		return fmt.Sprintf("Article not parsed: %v", err)
+	}
+
+	return fmt.Sprintf("Article Title: %s\nURL: %s\nAuthors: %v\nPublish Date: %v\nTop Image: %s\nMeta Description: %s\nKeywords: %v\nSummary: %s\nText: %s",
+		a.Title,
+		a.URL,
+		a.Authors,
+		a.PublishDate,
+		a.TopImage,
+		a.MetaDescription,
+		a.Keywords,
+		a.Summary,
+		a.Text)
+}
+
+// IsLikelyArticleURL checks if a URL is likely to be an article rather than a navigation link
+func IsLikelyArticleURL(urlStr string) bool {
+	// Skip obvious navigation/category
+
+	parsedURL, err := url.Parse(urlStr)
+	if err != nil {
+		return false
+	}
+
+	// is contains any stopwords from URL_STOPWORDS
+	for _, stopword := range constants.COMMON_NOT_ARTICLE_URL_STOPWORDS {
+		if strings.Contains(parsedURL.Path, stopword) || strings.HasSuffix(parsedURL.Path, "/"+stopword) {
+			return false
+		}
+	}
+
+	// For Hacker News, articles have /item?id= pattern
+	if strings.Contains(urlStr, "/item?id=") {
+		return true
+	}
+
+	// For other sites, check for common article patterns, URL_GOODWORDS
+	for _, goodword := range constants.COMMON_ARTICLE_URL_GOODWORDS {
+		if strings.Contains(parsedURL.Path, goodword) || strings.HasSuffix(parsedURL.Path, "/"+goodword) {
+			return true
+		}
+	}
+
+	// Check if URL has a date-like pattern (YYYY/MM/DD or similar)
+	datePattern := regexp.MustCompile(`/(\d{4})/(\d{1,2})/(\d{1,2})/`)
+	if datePattern.MatchString(urlStr) {
+		return true
+	}
+
+	// If it has query parameters, it might be an article
+	if parsedURL.RawQuery != "" {
+		return true
+	}
+
+	// Default: if it's not obviously a category/navigation URL, consider it an article
+	return false
 }
