@@ -115,7 +115,13 @@ func (a *Article) Download() *Article {
 			a.DownloadExceptionMsg = err.Error()
 			return a
 		}
-		defer func() { _ = resp.Body.Close() }()
+		defer func() {
+			err = resp.Body.Close()
+
+			if err != nil {
+				fmt.Println("Error closing response body:", err)
+			}
+		}()
 
 		// Read HTML
 		htmlBytes, err := io.ReadAll(resp.Body)
