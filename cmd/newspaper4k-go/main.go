@@ -21,8 +21,6 @@ func main() {
 	demonstrateSourceUsage()
 }
 
-// Mark demonstrateURL as used to avoid unused function in linter (keeps demo code available)
-
 func demonstrateArticleUsage() {
 	// Sample HTML content for testing
 	testHTML := `
@@ -168,6 +166,7 @@ func demonstrateArticleUsage() {
 
 	fmt.Println("\nDemo completed successfully!")
 }
+
 func demonstrateSourceUsage() {
 	fmt.Println("\n\n=== SOURCE PACKAGE DEMO ===")
 	fmt.Println("Demonstrating news source crawling and article discovery")
