@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/tguidoux/newspaper4k-go/pkg/constants"
 	"golang.org/x/net/publicsuffix"
 )
 
@@ -122,23 +123,50 @@ func PrepareURL(urlStr string, sourceURL string) string {
 	var properURL string
 
 	if sourceURL != "" {
-		sourceParsed, err := url.Parse(sourceURL)
+		sourceParsed, err := Parse(sourceURL)
 		if err != nil {
 			return ""
 		}
 		sourceDomain := sourceParsed.Host
 
-		properURL = joinURL(sourceURL, urlStr)
+		properURL = JoinURL(sourceURL, urlStr)
 		properURL = RedirectBack(properURL, sourceDomain)
 	} else {
 		properURL = urlStr
 	}
-
+	properURL = cleanURL(properURL)
 	return properURL
 }
 
-// joinURL joins a base URL with a relative URL
-func joinURL(baseURL, relativeURL string) string {
+func cleanURL(urlStr string) string {
+	// Remove URL fragments
+	if idx := strings.Index(urlStr, "#"); idx != -1 {
+		urlStr = urlStr[:idx]
+	}
+
+	// Remove double slashes in the path
+	parsedURL, err := url.Parse(urlStr)
+	if err != nil {
+		return urlStr
+	}
+
+	// Remove query parameters with COMMON_TRACKING_PARAMS
+	queryValues := parsedURL.Query()
+	for _, param := range constants.COMMON_TRACKING_PARAMS {
+		delete(queryValues, param)
+	}
+	parsedURL.RawQuery = queryValues.Encode()
+
+	// Clean up the path by replacing multiple slashes with a single slash
+	cleanedPath := strings.ReplaceAll(parsedURL.Path, "//", "/")
+	parsedURL.Path = cleanedPath
+	urlStr = parsedURL.String()
+
+	return urlStr
+}
+
+// JoinURL joins a base URL with a relative URL
+func JoinURL(baseURL, relativeURL string) string {
 	base, err := url.Parse(baseURL)
 	if err != nil {
 		return relativeURL

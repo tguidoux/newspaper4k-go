@@ -417,3 +417,70 @@ func TestRedirectBack(t *testing.T) {
 		})
 	}
 }
+func TestCleanURL(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "URL with fragment",
+			input: "https://example.com/path#section",
+			want:  "https://example.com/path",
+		},
+		{
+			name:  "URL with tracking parameter",
+			input: "https://example.com/path?utm_source=newsletter",
+			want:  "https://example.com/path",
+		},
+		{
+			name:  "URL with multiple tracking parameters",
+			input: "https://example.com/path?utm_source=test&utm_medium=email&utm_campaign=campaign",
+			want:  "https://example.com/path",
+		},
+		{
+			name:  "URL with double slashes in path",
+			input: "https://example.com//path//to//resource",
+			want:  "https://example.com/path/to/resource",
+		},
+		{
+			name:  "URL with fragment, tracking params, and double slashes",
+			input: "https://example.com//path//to//resource?utm_source=test&utm_medium=email#section",
+			want:  "https://example.com/path/to/resource",
+		},
+		{
+			name:  "URL with non-tracking query parameter",
+			input: "https://example.com/path?valid=param",
+			want:  "https://example.com/path?valid=param",
+		},
+		{
+			name:  "URL with no changes needed",
+			input: "https://example.com/path",
+			want:  "https://example.com/path",
+		},
+		{
+			name:  "Invalid URL",
+			input: "not-a-valid-url",
+			want:  "not-a-valid-url",
+		},
+		{
+			name:  "Empty string",
+			input: "",
+			want:  "",
+		},
+		{
+			name:  "URL with port and query",
+			input: "http://example.com:8080/path?utm_source=test&other=param",
+			want:  "http://example.com:8080/path?other=param",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := cleanURL(tt.input)
+			if got != tt.want {
+				t.Errorf("cleanURL() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
