@@ -92,14 +92,25 @@ type ParseRequest struct {
 }
 
 // Build builds a lone article from a URL. Calls Download(), Parse(), and NLP() in succession.
-func (a *Article) Build(extractors []Extractor) {
-	a.Download()
-	a.Parse(extractors)
-	a.NLP()
+func (a *Article) Build(extractors []Extractor) error {
+	err := a.Download()
+	if err != nil {
+		return fmt.Errorf("error downloading article: %w", err)
+	}
+	err = a.Parse(extractors)
+	if err != nil {
+		return fmt.Errorf("error parsing article: %w", err)
+	}
+	err = a.NLP()
+	if err != nil {
+		return fmt.Errorf("error in NLP processing: %w", err)
+	}
+
+	return nil
 }
 
 // Download downloads the link's HTML content.
-func (a *Article) Download() *Article {
+func (a *Article) Download() error {
 
 	inputHTML := a.Config.DownloadOptions.InputHTML
 
@@ -113,7 +124,7 @@ func (a *Article) Download() *Article {
 		if err != nil {
 			a.DownloadState = FailedResponse
 			a.DownloadExceptionMsg = err.Error()
-			return a
+			return fmt.Errorf("error performing HTTP GET request: %w", err)
 		}
 		defer func() {
 			err = resp.Body.Close()
@@ -128,7 +139,7 @@ func (a *Article) Download() *Article {
 		if err != nil {
 			a.DownloadState = FailedResponse
 			a.DownloadExceptionMsg = err.Error()
-			return a
+			return fmt.Errorf("error reading response body: %w", err)
 		}
 		htmlContent := string(htmlBytes)
 
@@ -137,7 +148,7 @@ func (a *Article) Download() *Article {
 		if err != nil {
 			a.DownloadState = FailedResponse
 			a.DownloadExceptionMsg = err.Error()
-			return a
+			return fmt.Errorf("error parsing downloaded HTML: %w", err)
 		}
 		a.Doc = doc
 		a.HTML = htmlContent
@@ -150,25 +161,28 @@ func (a *Article) Download() *Article {
 		if err != nil {
 			a.DownloadState = FailedResponse
 			a.DownloadExceptionMsg = err.Error()
-			return a
+			return fmt.Errorf("error parsing provided HTML: %w", err)
 		}
 		a.Doc = doc
 		a.DownloadState = Success
 	}
 
-	return a
+	return nil
 }
 
 // Parse parses the previously downloaded article.
-func (a *Article) Parse(extractors []Extractor) *Article {
+func (a *Article) Parse(extractors []Extractor) error {
 	if err := a.ThrowIfNotDownloadedVerbose(); err != nil {
 		// Handle error, perhaps log or return
-		return a
+		return fmt.Errorf("article not downloaded: %w", err)
 	}
 
 	// Run extractors
 	for _, ext := range extractors {
-		_ = ext.Parse(a)
+		err := ext.Parse(a)
+		if err != nil {
+			return fmt.Errorf("error in extractor %T: %w", ext, err)
+		}
 	}
 
 	// Clean the top node if it exists
@@ -181,21 +195,18 @@ func (a *Article) Parse(extractors []Extractor) *Article {
 	}
 
 	a.IsParsed = true
-	return a
+	return nil
 }
 
 // NLP performs keyword extraction and summarization.
-func (a *Article) NLP() {
+func (a *Article) NLP() error {
 	if err := a.ThrowIfNotParsedVerbose(); err != nil {
 		// Handle error
-		return
+		return fmt.Errorf("article not parsed: %w", err)
 	}
 
 	// Get language for stop words
 	language := a.GetLanguage().String()
-	if language == "" {
-		language = "en" // Default to English
-	}
 
 	// Create StopWords instance
 	stopwords, err := nlp.NewStopWords(language)
@@ -203,7 +214,7 @@ func (a *Article) NLP() {
 		// Fallback to basic method if StopWords creation fails
 		a.extractKeywordsBasic()
 		a.generateSummaryBasic()
-		return
+		return nil
 	}
 
 	// Extract keywords using NLP package
@@ -211,6 +222,8 @@ func (a *Article) NLP() {
 
 	// Generate summary using NLP package
 	a.generateSummaryWithNLP(stopwords)
+
+	return nil
 }
 
 // extractKeywordsWithNLP extracts keywords using the NLP package

@@ -53,32 +53,13 @@ func NewArticleFromRequest(req newspaper.ParseRequest) (*newspaper.Article, erro
 		return nil, fmt.Errorf("empty URL and empty InputHTML")
 	}
 
-	// Create the base article
-	art, err := NewArticle(req.URL)
-	if err != nil {
-		return nil, err
-	}
-
-	// Download if provided input HTML or no HTML
-	art.Config.DownloadOptions.InputHTML = req.InputHTML
-	art.Download()
-
-	art.Parse(req.Extractors)
-
-	art.NLP()
-
-	return art, nil
-}
-
-// NewArticle constructs the article class. Will not download or parse the article.
-func NewArticle(url string) (*newspaper.Article, error) {
-	// Set source URL if not provided
-	parsedURL, err := urls.Parse(url)
+	parsedURL, err := urls.Parse(req.URL)
 	if err != nil {
 		return nil, fmt.Errorf("input url bad format: %w", err)
 	}
 
-	article := &newspaper.Article{
+	// Create the base article
+	art := &newspaper.Article{
 		Config:        configuration.NewConfiguration(),
 		SourceURL:     "",
 		URL:           parsedURL.String(),
@@ -96,5 +77,8 @@ func NewArticle(url string) (*newspaper.Article, error) {
 		Categories:    []*urls.URL{},
 	}
 
-	return article, nil
+	// Download if provided input HTML or no HTML
+	art.Config.DownloadOptions.InputHTML = req.InputHTML
+
+	return art, nil
 }
