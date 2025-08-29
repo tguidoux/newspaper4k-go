@@ -14,6 +14,7 @@ import (
 	"github.com/tguidoux/newspaper4k-go/internal/cleaner"
 	"github.com/tguidoux/newspaper4k-go/internal/nlp"
 	"github.com/tguidoux/newspaper4k-go/internal/parsers"
+	"github.com/tguidoux/newspaper4k-go/internal/resources/text"
 	"github.com/tguidoux/newspaper4k-go/internal/urls"
 	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
 	"github.com/tguidoux/newspaper4k-go/pkg/constants"
@@ -34,15 +35,12 @@ const (
 type Article struct {
 	SourceURL            string               // URL to the main page of the news source
 	URL                  string               // The article link (may differ from original URL)
-	OriginalURL          string               // The original URL passed to the constructor
 	Title                string               // Parsed title of the article
-	ReadMoreLink         string               // XPath selector for the link to the full article
 	TopImage             string               // Top image URL of the article
 	MetaImg              string               // Image URL provided by metadata
 	Images               []string             // List of all image URLs in the article
 	Movies               []string             // List of video links in the article body
 	Text                 string               // Parsed version of the article body
-	TextCleaned          string               // Deprecated: same as Text
 	Keywords             []string             // Inferred list of keywords for this article
 	KeywordScores        map[string]float64   // Dictionary of keywords and their scores
 	MetaKeywords         []string             // List of keywords provided by the meta data
@@ -55,7 +53,6 @@ type Article struct {
 	IsParsed             bool                 // True if parse() has been called
 	DownloadState        ArticleDownloadState // Download state
 	DownloadExceptionMsg string               // Exception message if download() failed
-	History              []string             // Redirection history from requests
 	MetaDescription      string               // Description extracted from meta data
 	MetaLang             string               // Language extracted from meta data
 	MetaFavicon          string               // Website's favicon URL
@@ -461,10 +458,7 @@ func (a *Article) getStopWords() map[string]bool {
 	stopWords := make(map[string]bool)
 
 	// Try to load stop words from the text package based on article's language
-	language := a.MetaLang
-	if language == "" {
-		language = "en" // Default to English
-	}
+	language := a.GetLanguage().String()
 
 	stopWordsSlice := nlp.GetStopWordsForLanguage(language)
 
@@ -476,13 +470,7 @@ func (a *Article) getStopWords() map[string]bool {
 
 	// Fallback to hardcoded English stop words if no stopwords found
 	if len(stopWords) == 0 {
-		englishStopWords := []string{
-			"the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of",
-			"with", "by", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had",
-			"do", "does", "did", "will", "would", "could", "should", "may", "might", "must", "can", "shall",
-			"this", "that", "these", "those", "i", "you", "he", "she", "it", "we", "they", "me",
-			"him", "her", "us", "them", "my", "your", "his", "its", "our", "their",
-		}
+		englishStopWords := text.StopwordsEN
 		for _, word := range englishStopWords {
 			stopWords[word] = true
 		}
@@ -501,35 +489,9 @@ func (a *Article) GetTitle() string {
 	return a.Title
 }
 
-// SetTitle sets the title of the article.
-func (a *Article) SetTitle(value string) {
-	if value != "" {
-		if len(value) > a.Config.MaxTitle {
-			a.Title = value[:a.Config.MaxTitle]
-		} else {
-			a.Title = value
-		}
-	} else {
-		a.Title = ""
-	}
-}
-
 // GetText returns the text content of the article.
 func (a *Article) GetText() string {
 	return a.Text
-}
-
-// SetText sets the text of the article.
-func (a *Article) SetText(value string) {
-	if value != "" {
-		if len(value) > a.Config.MaxText {
-			a.Text = value[:a.Config.MaxText]
-		} else {
-			a.Text = value
-		}
-	} else {
-		a.Text = ""
-	}
 }
 
 // GetHTML returns the HTML content of the article.
@@ -537,32 +499,9 @@ func (a *Article) GetHTML() string {
 	return a.HTML
 }
 
-// SetHTML sets the HTML content of the article.
-func (a *Article) SetHTML(value string) {
-	a.DownloadState = Success
-	if value != "" {
-		a.HTML = value
-	} else {
-		a.HTML = ""
-	}
-}
-
 // GetSummary returns the summary of the article.
 func (a *Article) GetSummary() string {
 	return a.Summary
-}
-
-// SetSummary sets the summary of the article.
-func (a *Article) SetSummary(value string) {
-	if value != "" {
-		if len(value) > a.Config.MaxSummary {
-			a.Summary = value[:a.Config.MaxSummary]
-		} else {
-			a.Summary = value
-		}
-	} else {
-		a.Summary = ""
-	}
 }
 
 // ThrowIfNotDownloadedVerbose checks if the article has been downloaded.
@@ -587,7 +526,9 @@ func (a *Article) ThrowIfNotParsedVerbose() error {
 // IsValidURL checks if the URL is valid.
 func (a *Article) IsValidURL() bool {
 	// Implement URL validation
-	return true // TODO: Add actual validation logic from urls.IsValidNewsArticleURL(...)
+	isLikelyArticleURL := IsLikelyArticleURL(a.URL)
+	parsedURL, err := urls.Parse(a.URL)
+	return isLikelyArticleURL && err == nil && parsedURL.Scheme != "" && parsedURL.Domain != ""
 }
 
 // IsValidBody checks if the article body is valid.
@@ -610,6 +551,17 @@ func (a *Article) GetTopKeywordsList() []string {
 }
 
 func (a *Article) GetLanguage() language.Tag {
+	// If language is not set, try to detect from MetaLang
+	if a.Language == language.Und && a.MetaLang != "" {
+		tag, err := language.Parse(a.MetaLang)
+		if err == nil {
+			a.Language = tag
+		}
+	}
+	// Fallback to English if still undefined
+	if a.Language == language.Und {
+		a.Language = language.English
+	}
 	return a.Language
 }
 

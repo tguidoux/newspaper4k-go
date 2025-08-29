@@ -87,9 +87,7 @@ func NewArticle(url string) (*newspaper.Article, error) {
 		Config:        configuration.NewConfiguration(),
 		SourceURL:     sourceURL,
 		URL:           preparedURL,
-		OriginalURL:   preparedURL,
 		Title:         "",
-		ReadMoreLink:  "",
 		DownloadState: newspaper.NotStarted,
 		IsParsed:      false,
 		Images:        []string{},
@@ -101,7 +99,6 @@ func NewArticle(url string) (*newspaper.Article, error) {
 		Authors:       []string{},
 		MetaData:      map[string]string{},
 		Categories:    []*urls.URL{},
-		History:       []string{},
 	}
 
 	return article, nil

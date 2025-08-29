@@ -365,12 +365,6 @@ func TestArticleGettersAndSetters(t *testing.T) {
 		t.Error("GetTitle should return the same as Title field")
 	}
 
-	// Test SetTitle
-	art.SetTitle("New Test Title That Is Very Long And Should Exceed The Maximum Title Length Limit To Test The Truncation Functionality Properly")
-	if art.Title == "" {
-		t.Error("SetTitle should not set empty title")
-	}
-
 	// Test GetText
 	text := art.GetText()
 	if text != art.Text {
