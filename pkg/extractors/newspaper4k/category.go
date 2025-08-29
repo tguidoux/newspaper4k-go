@@ -8,10 +8,10 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/tguidoux/newspaper4k-go/internal/helpers"
 	"github.com/tguidoux/newspaper4k-go/internal/parsers"
 	"github.com/tguidoux/newspaper4k-go/internal/urls"
 	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
+	"github.com/tguidoux/newspaper4k-go/pkg/constants"
 	"github.com/tguidoux/newspaper4k-go/pkg/newspaper"
 )
 
@@ -33,12 +33,15 @@ func NewCategoryExtractor(config *configuration.Configuration) *CategoryExtracto
 func (ce *CategoryExtractor) Parse(a *newspaper.Article) error {
 	ce.categories = []*urls.URL{}
 
-	doc, err := helpers.GetDocFromArticle(a)
-	if err != nil {
-		return err
+	if a.Doc == nil {
+		doc, err := parsers.FromString(a.HTML)
+		if err != nil {
+			return err
+		}
+		a.Doc = doc
 	}
 
-	categories := ce.parse(a.SourceURL, doc)
+	categories := ce.parse(a.SourceURL, a.Doc)
 	ce.categories = categories
 	a.Categories = categories
 
@@ -90,13 +93,12 @@ func (ce *CategoryExtractor) parse(sourceURL string, doc *goquery.Document) []*u
 					continue
 				}
 
-				path := strings.ToLower(parsedURL.Path)
-				pathChunks := urls.GetPathChunks(path)
+				pathChunks := parsedURL.GetPathChunks()
 				subdomain := strings.ToLower(parsedURL.Subdomain)
 				subdomainParts := strings.Split(subdomain, ".")
 
 				conjunction := append(pathChunks, subdomainParts...)
-				stopWords := ce.getStopWords()
+				stopWords := constants.URL_STOPWORDS
 
 				intersection := ce.intersection(conjunction, stopWords)
 				if len(intersection) == 0 {
@@ -114,8 +116,11 @@ func (ce *CategoryExtractor) parse(sourceURL string, doc *goquery.Document) []*u
 	categoryURLs := []*urls.URL{}
 	for _, pURL := range validCategories {
 		if pURL.String() != "" {
-			preparedURL := pURL.Prepare(parsedSourceURL)
-			categoryURLs = append(categoryURLs, preparedURL)
+			err := pURL.Prepare(parsedSourceURL)
+			if err != nil {
+				continue
+			}
+			categoryURLs = append(categoryURLs, pURL)
 		}
 	}
 
@@ -229,12 +234,12 @@ func (ce *CategoryExtractor) filterOtherLink(candidate, filterTLD string) bool {
 		return false
 	}
 
-	parsedCandidate, err := url.Parse(candidate)
+	parsedCandidate, err := urls.Parse(candidate)
 	if err != nil {
 		return false
 	}
 
-	pathChunks := urls.GetPathChunks(parsedCandidate.Path)
+	pathChunks := parsedCandidate.GetPathChunks()
 	if len(pathChunks) > 2 || len(pathChunks) == 0 {
 		return false
 	}
@@ -256,11 +261,10 @@ func (ce *CategoryExtractor) isAssetURL(urlStr string) bool {
 // filterValidCategories filters category candidates
 func (ce *CategoryExtractor) filterValidCategories(candidates []*urls.URL, sourceURL *urls.URL) []*urls.URL {
 	validCategories := []*urls.URL{}
-	stopWords := ce.getStopWords()
+	stopWords := constants.URL_STOPWORDS
 
 	for _, pURL := range candidates {
-		path := strings.ToLower(pURL.Path)
-		pathChunks := urls.GetPathChunks(path)
+		pathChunks := pURL.GetPathChunks()
 		subdomain := strings.ToLower(pURL.Subdomain)
 		subdomainParts := strings.Split(subdomain, ".")
 
@@ -273,11 +277,6 @@ func (ce *CategoryExtractor) filterValidCategories(candidates []*urls.URL, sourc
 	}
 
 	return validCategories
-}
-
-// getStopWords returns the set of stopwords
-func (ce *CategoryExtractor) getStopWords() []string {
-	return newspaper.URL_STOPWORDS
 }
 
 // intersection returns intersection of two string slices

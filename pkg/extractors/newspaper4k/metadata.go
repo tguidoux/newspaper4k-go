@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/tguidoux/newspaper4k-go/internal/helpers"
 	"github.com/tguidoux/newspaper4k-go/internal/parsers"
 	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
+	"github.com/tguidoux/newspaper4k-go/pkg/constants"
 	"github.com/tguidoux/newspaper4k-go/pkg/newspaper"
 )
 
@@ -26,18 +26,20 @@ func NewMetadataExtractor(config *configuration.Configuration) *MetadataExtracto
 
 // Parse extracts metadata from the article and updates the article in-place
 func (me *MetadataExtractor) Parse(a *newspaper.Article) error {
-	doc, err := helpers.GetDocFromArticle(a)
-	if err != nil {
-		return err
+	if a.Doc == nil {
+		doc, err := parsers.FromString(a.HTML)
+		if err != nil {
+			return err
+		}
+		a.Doc = doc
 	}
-
 	// Extract metadata
-	a.MetaLang = me.getMetaLanguage(doc)
-	a.CanonicalLink = me.getCanonicalLink(a.URL, doc)
-	a.MetaSiteName = me.getMetaField(doc, "og:site_name")
-	a.MetaDescription = me.getMetaField(doc, []string{"description", "og:description"})
-	a.MetaKeywords = me.getMetaKeywords(doc)
-	a.MetaData = me.getMetadata(doc)
+	a.MetaLang = me.getMetaLanguage(a.Doc)
+	a.CanonicalLink = me.getCanonicalLink(a.URL, a.Doc)
+	a.MetaSiteName = me.getMetaField(a.Doc, "og:site_name")
+	a.MetaDescription = me.getMetaField(a.Doc, []string{"description", "og:description"})
+	a.MetaKeywords = me.getMetaKeywords(a.Doc)
+	a.MetaData = me.getMetadata(a.Doc)
 
 	return nil
 }
@@ -49,7 +51,7 @@ func (me *MetadataExtractor) getMetaLanguage(doc *goquery.Document) string {
 			return ""
 		}
 		s = s[:2]
-		matched, _ := regexp.MatchString(newspaper.RE_LANG, s)
+		matched, _ := regexp.MatchString(constants.RE_LANG, s)
 		if matched {
 			return strings.ToLower(s)
 		}
@@ -64,7 +66,7 @@ func (me *MetadataExtractor) getMetaLanguage(doc *goquery.Document) string {
 	}
 
 	// Check meta language tags
-	for _, elem := range newspaper.META_LANGUAGE_TAGS {
+	for _, elem := range constants.META_LANGUAGE_TAGS {
 		tag := elem["tag"]
 		attr := elem["attr"]
 		value := elem["value"]

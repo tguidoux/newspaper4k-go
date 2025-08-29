@@ -5,10 +5,10 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/tguidoux/newspaper4k-go/internal/helpers"
 	"github.com/tguidoux/newspaper4k-go/internal/parsers"
 	"github.com/tguidoux/newspaper4k-go/internal/urls"
 	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
+	"github.com/tguidoux/newspaper4k-go/pkg/constants"
 	"github.com/tguidoux/newspaper4k-go/pkg/newspaper"
 )
 
@@ -39,12 +39,15 @@ func (ie *ImageExtractor) Parse(a *newspaper.Article) error {
 	ie.images = []string{}
 	ie.favicon = ""
 
-	doc, err := helpers.GetDocFromArticle(a)
-	if err != nil {
-		return err
+	if a.Doc == nil {
+		doc, err := parsers.FromString(a.HTML)
+		if err != nil {
+			return err
+		}
+		a.Doc = doc
 	}
 
-	ie.parse(doc, a.TopNode, a.URL)
+	ie.parse(a.Doc, a.TopNode, a.URL)
 
 	a.TopImage = ie.topImage
 	a.MetaImg = ie.metaImage
@@ -60,7 +63,7 @@ func (ie *ImageExtractor) parse(doc *goquery.Document, topNode *goquery.Selectio
 
 	ie.metaImage = ie.getMetaImage(doc)
 	if ie.metaImage != "" {
-		ie.metaImage = urls.URLJoinIfValid(articleURL, ie.metaImage)
+		ie.metaImage = urls.JoinURL(articleURL, ie.metaImage)
 	}
 
 	ie.images = ie.getImages(doc, articleURL)
@@ -87,7 +90,7 @@ func (ie *ImageExtractor) getFavicon(doc *goquery.Document) string {
 func (ie *ImageExtractor) getMetaImage(doc *goquery.Document) string {
 	candidates := []ImageCandidate{}
 
-	for _, elem := range newspaper.META_IMAGE_TAGS {
+	for _, elem := range constants.META_IMAGE_TAGS {
 		var items []*goquery.Selection
 
 		if strings.Contains(elem.Value, "|") {
@@ -140,7 +143,7 @@ func (ie *ImageExtractor) getImages(doc *goquery.Document, articleURL string) []
 	doc.Find("img").Each(func(i int, s *goquery.Selection) {
 		src := ie.getImageSrc(s)
 		if src != "" && !strings.HasPrefix(src, "data:") {
-			fullURL := urls.URLJoinIfValid(articleURL, src)
+			fullURL := urls.JoinURL(articleURL, src)
 			if fullURL != "" {
 				images = append(images, fullURL)
 			}
@@ -202,7 +205,7 @@ func (ie *ImageExtractor) getTopImage(doc *goquery.Document, topNode *goquery.Se
 
 	// Return the first valid image
 	for _, candidate := range imgCandidates {
-		fullURL := urls.URLJoinIfValid(articleURL, candidate.URL)
+		fullURL := urls.JoinURL(articleURL, candidate.URL)
 		if fullURL != "" {
 			return fullURL
 		}
