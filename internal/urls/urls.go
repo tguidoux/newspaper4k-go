@@ -364,7 +364,7 @@ func Parse(s string) (*URL, error) {
 	etld1, err := publicsuffix.EffectiveTLDPlusOne(dom)
 	suffix, icann := publicsuffix.PublicSuffix(strings.ToLower(dom))
 
-	// HACK: attempt to support valid domains which are not registered with ICAN
+	// HACK: attempt to support valid domains which are not registered with ICANN
 	if err != nil && !icann && suffix == dom {
 		etld1 = dom
 		err = nil
