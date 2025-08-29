@@ -12,6 +12,7 @@ import (
 	"github.com/tguidoux/newspaper4k-go/internal/parsers"
 	"github.com/tguidoux/newspaper4k-go/internal/urls"
 	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
+	"github.com/tguidoux/newspaper4k-go/pkg/constants"
 	"github.com/tguidoux/newspaper4k-go/pkg/newspaper"
 )
 
@@ -20,18 +21,17 @@ type Source interface {
 	Build(inputHTML string, onlyHomepage bool, onlyInPath bool)
 	Download()
 	Parse()
-	SetCategories()
+	SearchCategories()
 	GetFeeds(limitFeeds int)
-	SetDescription()
+	extractDescription()
 	DownloadCategories()
-	ParseCategories()
-	FeedsToArticles() []newspaper.Article
-	CategoriesToArticles() []newspaper.Article
-	GenerateArticles(limit int, onlyInPath bool)
+	BuildCategories()
+	feedsToArticles() []newspaper.Article
+	categoriesToArticles() []newspaper.Article
+	GetArticles(limit int, onlyInPath bool)
 	DownloadArticles() []newspaper.Article
 	ParseArticles()
 	Size() int
-	CleanMemoCache()
 	FeedURLs() []string
 	CategoryURLs() []string
 	ArticleURLs() []string
@@ -62,25 +62,28 @@ type SourceRequest struct {
 }
 
 type BuildParams struct {
-	InputHTML     string
-	OnlyHomepage  bool
-	OnlyInPath    bool
-	LimitArticles int
-	LimitFeeds    int
+	InputHTML       string
+	OnlyHomepage    bool
+	OnlyInPath      bool
+	LimitCategories int
+	LimitArticles   int
+	LimitFeeds      int
 }
 
 // NewDefaultSource creates a new DefaultSource
 func NewDefaultSource(request SourceRequest) (*DefaultSource, error) {
 
-	url := request.URL
+	url := urls.PrepareURL(request.URL, request.URL)
 	config := request.Config
 
-	if !urls.ValidateURL(url) {
-		return nil, fmt.Errorf("input url is bad")
+	preparedURL, err := urls.New(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare URL: %v", err)
 	}
 
 	source := &DefaultSource{
-		URL:          urls.PrepareURL(url, ""),
+		URL:          url,
+		ParsedURL:    preparedURL,
 		Config:       &config,
 		Categories:   []newspaper.Category{},
 		Feeds:        []newspaper.Feed{},
@@ -89,14 +92,16 @@ func NewDefaultSource(request SourceRequest) (*DefaultSource, error) {
 		IsDownloaded: false,
 	}
 
-	ParsedURL, err := urls.Parse(source.URL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse URL: %v", err)
-	}
-
-	source.ParsedURL = ParsedURL
-
 	return source, nil
+}
+
+// -----------------------------------------------------------------
+// Source methods
+// -----------------------------------------------------------------
+
+// Build encapsulates download and basic parsing
+func (s *DefaultSource) Build() error {
+	return s.BuildWithParams(BuildParams{InputHTML: "", OnlyHomepage: false, OnlyInPath: false, LimitArticles: 5000})
 }
 
 // Build encapsulates download and basic parsing
@@ -104,7 +109,7 @@ func (s *DefaultSource) BuildWithParams(params BuildParams) error {
 
 	inputHTML := params.InputHTML
 	onlyHomepage := params.OnlyHomepage
-	onlyInPath := params.OnlyInPath
+	// onlyInPath := params.OnlyInPath
 	limitArticles := params.LimitArticles
 	if limitArticles <= 0 {
 		limitArticles = 5000
@@ -112,6 +117,10 @@ func (s *DefaultSource) BuildWithParams(params BuildParams) error {
 	limitFeeds := params.LimitFeeds
 	if limitFeeds <= 0 {
 		limitFeeds = 100
+	}
+	limitCategories := params.LimitCategories
+	if limitCategories <= 0 {
+		limitCategories = 100
 	}
 
 	// Step 1: Download and parse homepage
@@ -134,13 +143,17 @@ func (s *DefaultSource) BuildWithParams(params BuildParams) error {
 	if onlyHomepage {
 		s.Categories = []newspaper.Category{{URL: s.URL, HTML: s.HTML, Doc: s.Doc}}
 	} else {
-		err := s.SetCategories()
+		err := s.SearchCategories()
 		if err != nil {
 			return fmt.Errorf("failed to set categories: %v", err)
 		}
 		s.DownloadCategories()
 	}
-	s.ParseCategories()
+	s.BuildCategories()
+
+	if len(s.Categories) > limitCategories {
+		s.Categories = s.Categories[:limitCategories]
+	}
 
 	// Step 3: Download and parse feeds, generate articles
 	// we skip feeds if onlyHomepage is true
@@ -148,16 +161,11 @@ func (s *DefaultSource) BuildWithParams(params BuildParams) error {
 		s.GetFeeds(limitFeeds)
 	}
 
-	s.GenerateArticles(limitArticles, onlyInPath)
-	s.DownloadArticles()
-	s.ParseArticles()
+	// s.GetArticles(limitArticles, onlyInPath)
+	// s.DownloadArticles()
+	// s.ParseArticles()
 
 	return nil
-}
-
-// Build encapsulates download and basic parsing
-func (s *DefaultSource) Build() error {
-	return s.BuildWithParams(BuildParams{InputHTML: "", OnlyHomepage: false, OnlyInPath: false, LimitArticles: 5000})
 }
 
 // Download downloads the HTML of the source
@@ -204,15 +212,18 @@ func (s *DefaultSource) Parse() error {
 		}
 		s.Doc = doc
 	}
-	s.SetDescription()
+	s.extractDescription()
 	s.IsParsed = true
 
 	return nil
 }
 
-// SetCategories sets the categories for the source
+// -----------------------------------------------------------------
+// Categories
+// -----------------------------------------------------------------
+// SearchCategories sets the categories for the source
 // Only includes categories from the same domain as the source URL
-func (s *DefaultSource) SetCategories() error {
+func (s *DefaultSource) SearchCategories() error {
 	// Simple implementation: extract categories from links on the homepage
 	if s.Doc == nil {
 		return fmt.Errorf("document not parsed")
@@ -227,24 +238,22 @@ func (s *DefaultSource) SetCategories() error {
 			fullURL := urls.PrepareURL(href, s.URL)
 			if newspaper.IsValidCategoryURL(fullURL) && fullURL != s.URL {
 				// Only include URLs from the same domain as the source
-				categoryDomain, err := urls.Parse(fullURL)
+				categoryUrl, err := urls.Parse(fullURL)
 				if err != nil {
 					return
 				}
-				if categoryDomain.Domain == sourceDomain {
-					categoryURLs = append(categoryURLs, fullURL)
+				if categoryUrl.Domain == sourceDomain {
+					categoryURLs = append(categoryURLs, categoryUrl.String())
 				}
 			}
 		}
 	})
 
+	// Add main page as a category for feed extraction
+	// categoryURLs = append(categoryURLs, s.URL)
+
 	// Remove duplicates
 	uniqueURLs := helpers.UniqueStringsSimple(categoryURLs)
-
-	// Limit categories for demo purposes
-	if len(uniqueURLs) > 5 {
-		uniqueURLs = uniqueURLs[:5]
-	}
 
 	s.Categories = make([]newspaper.Category, len(uniqueURLs))
 	for i, u := range uniqueURLs {
@@ -254,59 +263,41 @@ func (s *DefaultSource) SetCategories() error {
 	return nil
 }
 
-// isLikelyArticleURL checks if a URL is likely to be an article rather than a navigation link
-func (s *DefaultSource) isLikelyArticleURL(urlStr string) bool {
-	// Skip obvious navigation/category URLs
-	if strings.Contains(urlStr, "/newest") ||
-		strings.Contains(urlStr, "/past") ||
-		strings.Contains(urlStr, "/comments") ||
-		strings.Contains(urlStr, "/ask") ||
-		strings.Contains(urlStr, "/show") ||
-		strings.Contains(urlStr, "/jobs") ||
-		strings.Contains(urlStr, "/submit") ||
-		strings.Contains(urlStr, "/news") ||
-		strings.Contains(urlStr, "/front") ||
-		strings.Contains(urlStr, "/newcomments") ||
-		strings.Contains(urlStr, "/login") ||
-		strings.Contains(urlStr, "/logout") ||
-		strings.Contains(urlStr, "/user") {
-		return false
-	}
+// DownloadCategories downloads HTML for all categories
+func (s *DefaultSource) DownloadCategories() {
+	client := helpers.CreateHTTPClient(s.Config.RequestsParams.Timeout)
+	for i, cat := range s.Categories {
+		resp, err := client.Get(cat.URL)
+		if err != nil || resp.StatusCode >= 400 {
+			continue
+		}
 
-	// For Hacker News, articles have /item?id= pattern
-	if strings.Contains(urlStr, "/item?id=") {
-		return true
+		htmlBytes, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			continue
+		}
+		s.Categories[i].HTML = string(htmlBytes)
 	}
-
-	// For other sites, check for common article patterns
-	if strings.Contains(urlStr, "/article") ||
-		strings.Contains(urlStr, "/story") ||
-		strings.Contains(urlStr, "/post") ||
-		strings.Contains(urlStr, "/news/") ||
-		strings.Contains(urlStr, "/blog/") ||
-		strings.Contains(urlStr, "/p/") ||
-		strings.Contains(urlStr, "/entry") ||
-		strings.Contains(urlStr, "/content") {
-		return true
-	}
-
-	// Check if URL has a date-like pattern (YYYY/MM/DD or similar)
-	datePattern := regexp.MustCompile(`/(\d{4})/(\d{1,2})/(\d{1,2})/`)
-	if datePattern.MatchString(urlStr) {
-		return true
-	}
-
-	// If it has query parameters, it might be an article
-	ParsedURL, err := url.Parse(urlStr)
-	if err == nil && ParsedURL.RawQuery != "" {
-		return true
-	}
-
-	// Default: if it's not obviously a category/navigation URL, consider it an article
-	return false
 }
+
+// BuildCategories parses the HTML into goquery documents
+func (s *DefaultSource) BuildCategories() {
+	for i, cat := range s.Categories {
+		if cat.HTML != "" {
+			doc, err := parsers.FromString(cat.HTML)
+			if err == nil {
+				s.Categories[i].Doc = doc
+			}
+		}
+	}
+}
+
+// -----------------------------------------------------------------
+// Feeds
+// -----------------------------------------------------------------
 func (s *DefaultSource) GetFeeds(limitFeeds int) {
-	commonFeedSuffixes := newspaper.COMMON_FEED_SUFFIXES
+	commonFeedSuffixes := constants.COMMON_FEED_SUFFIXES
 	commonFeedURLs := []string{}
 
 	for _, suffix := range commonFeedSuffixes {
@@ -354,32 +345,139 @@ func (s *DefaultSource) GetFeeds(limitFeeds int) {
 		}
 		rss := string(rssBytes)
 
-		feed := newspaper.Feed{URL: feedURL, RSS: rss}
+		feed := newspaper.Feed{URL: urls.PrepareURL(feedURL, feedURL), RSS: rss}
 		validFeeds = append(validFeeds, feed)
 	}
 
-	// Add main page as a category for feed extraction
-	mainCategory := newspaper.Category{URL: s.URL, HTML: s.HTML, Doc: s.Doc}
-	allCategories := append(s.Categories, mainCategory)
-
 	// Extract feed URLs from categories
-	feedURLs := s.extractFeedURLs(allCategories)
+	feedURLs := s.extractFeedURLs(s.Categories)
 	for _, feedURL := range feedURLs {
-
-		// Skip if already added
-		found := false
-		for _, feed := range validFeeds {
-			if feed.URL == feedURL {
-				found = true
-				break
-			}
-		}
-		if !found {
-			validFeeds = append(validFeeds, newspaper.Feed{URL: feedURL})
-		}
+		validFeeds = append(validFeeds, newspaper.Feed{URL: urls.PrepareURL(feedURL, feedURL)})
 	}
 
+	validFeeds = helpers.UniqueStructByKey(
+		validFeeds,
+		func(f newspaper.Feed) string {
+			return f.URL
+		},
+		helpers.UniqueOptions{CaseSensitive: true, PreserveOrder: true},
+	)
+
 	s.Feeds = validFeeds
+}
+
+// -----------------------------------------------------------------
+// Articles
+// -----------------------------------------------------------------
+
+// feedsToArticles returns articles from RSS feeds
+func (s *DefaultSource) feedsToArticles() []newspaper.Article {
+	articles := []newspaper.Article{}
+
+	for _, feed := range s.Feeds {
+		if feed.RSS == "" {
+
+			continue
+		}
+
+		parsedFeedURL, err := url.Parse(feed.URL)
+		if err != nil {
+
+			continue
+		}
+
+		// Parse RSS XML properly instead of using regex
+		doc, err := parsers.FromString(feed.RSS)
+		if err != nil {
+			continue
+		}
+
+		// Extract URLs from RSS items
+		doc.Find("item, entry").Each(func(i int, item *goquery.Selection) {
+
+			// Try different link element patterns
+			var articleURL string
+
+			// Try link element first
+			link := item.Find("link").First()
+
+			if link.Length() > 0 {
+				articleURL = strings.TrimSpace(link.Text())
+				if articleURL == "" {
+					articleURL, _ = link.Attr("href")
+				}
+			}
+
+			// If no link found, try guid
+			if articleURL == "" {
+				guid := item.Find("guid").First()
+
+				if guid.Length() > 0 {
+					articleURL = strings.TrimSpace(guid.Text())
+					if articleURL == "" {
+						articleURL, _ = guid.Attr("href")
+					}
+				}
+			}
+
+			// If still no link found, try enclosure
+			if articleURL == "" {
+				enclosure := item.Find("enclosure").First()
+
+				if enclosure.Length() > 0 {
+					articleURL, _ = enclosure.Attr("url")
+				}
+			}
+
+			// If still no link found, try listing all links and picking the first valid one
+			if articleURL == "" {
+				item.Find("link").EachWithBreak(func(i int, linkSel *goquery.Selection) bool {
+					href, exists := linkSel.Attr("href")
+					if exists && href != "" {
+						articleURL = strings.TrimSpace(href)
+						return false // break the loop
+					}
+					return true // continue the loop
+				})
+			}
+
+			// Otherwise try to find any URL in the item text using regex
+			if articleURL == "" {
+				re := regexp.MustCompile(constants.RE_URL)
+				matches := re.FindStringSubmatch(item.Text())
+
+				// Take the first match which is likely a valid URL by our heuristics
+				for _, match := range matches {
+					if newspaper.IsLikelyArticleURL(match) {
+						articleURL = match
+						break
+					}
+				}
+
+			}
+
+			// Clean up the URL and validate
+			articleURL = urls.PrepareURL(articleURL, s.URL)
+
+			if articleURL != "" && newspaper.IsLikelyArticleURL(articleURL) {
+				// Only include articles from the same domain as the source
+				parsedArticleURL, err := urls.Parse(articleURL)
+				if err != nil {
+					return
+				}
+				if parsedArticleURL.Domain == s.ParsedURL.Domain && parsedArticleURL.String() != parsedFeedURL.String() {
+					article := newspaper.Article{
+						URL:       articleURL,
+						SourceURL: feed.URL,
+						Config:    s.Config,
+					}
+					articles = append(articles, article)
+				}
+			}
+		})
+	}
+
+	return articles
 }
 
 // extractFeedURLs extracts feed URLs from categories
@@ -412,144 +510,43 @@ func (s *DefaultSource) extractFeedURLs(categories []newspaper.Category) []strin
 	return feedURLs
 }
 
-// SetDescription sets the description from meta tags
-func (s *DefaultSource) SetDescription() {
-	if s.Doc == nil {
-		return
-	}
-	description, exists := s.Doc.Find("meta[name='description']").Attr("content")
-	if exists {
-		s.Description = description
-	}
-}
-
-// DownloadCategories downloads HTML for all categories
-func (s *DefaultSource) DownloadCategories() {
-	client := helpers.CreateHTTPClient(s.Config.RequestsParams.Timeout)
-	for i, cat := range s.Categories {
-		resp, err := client.Get(cat.URL)
-		if err != nil || resp.StatusCode >= 400 {
-			continue
-		}
-
-		htmlBytes, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			continue
-		}
-		s.Categories[i].HTML = string(htmlBytes)
-	}
-}
-
-// ParseCategories parses the HTML into goquery documents
-func (s *DefaultSource) ParseCategories() {
-	for i, cat := range s.Categories {
-		if cat.HTML != "" {
-			doc, err := parsers.FromString(cat.HTML)
-			if err == nil {
-				s.Categories[i].Doc = doc
-			}
-		}
-	}
-}
-
-// FeedsToArticles returns articles from RSS feeds
-func (s *DefaultSource) FeedsToArticles() []newspaper.Article {
-	articles := []newspaper.Article{}
-
-	for _, feed := range s.Feeds {
-		if feed.RSS == "" {
-			continue
-		}
-
-		// Parse RSS XML properly instead of using regex
-		doc, err := parsers.FromString(feed.RSS)
-		if err != nil {
-			continue
-		}
-
-		// Extract URLs from RSS items
-		doc.Find("item, entry").Each(func(i int, item *goquery.Selection) {
-			// Try different link element patterns
-			var articleURL string
-
-			// Try link element first
-			link := item.Find("link").First()
-			if link.Length() > 0 {
-				articleURL = strings.TrimSpace(link.Text())
-				if articleURL == "" {
-					articleURL, _ = link.Attr("href")
-				}
-			}
-
-			// If no link found, try guid
-			if articleURL == "" {
-				guid := item.Find("guid").First()
-				if guid.Length() > 0 {
-					articleURL = strings.TrimSpace(guid.Text())
-					if articleURL == "" {
-						articleURL, _ = guid.Attr("href")
-					}
-				}
-			}
-
-			// Clean up the URL and validate
-			articleURL = strings.TrimSpace(articleURL)
-			if articleURL != "" && newspaper.IsValidCategoryURL(articleURL) {
-				// Only include articles from the same domain as the source
-				parsedArticleURL, err := urls.Parse(articleURL)
-				if err != nil {
-					return
-				}
-				if parsedArticleURL.Domain == s.ParsedURL.Domain {
-					article := newspaper.Article{
-						URL:       articleURL,
-						SourceURL: feed.URL,
-						Config:    s.Config,
-					}
-					articles = append(articles, article)
-				}
-			}
-		})
-	}
-
-	return articles
-}
-
-// CategoriesToArticles returns articles from categories
+// categoriesToArticles returns articles from categories
 // Only includes articles from the same domain as the source URL
-func (s *DefaultSource) CategoriesToArticles() []newspaper.Article {
+func (s *DefaultSource) categoriesToArticles() []newspaper.Article {
 	articles := []newspaper.Article{}
 	sourceDomain := s.ParsedURL.Domain
 
 	for _, cat := range s.Categories {
-		if cat.Doc == nil {
+		if cat.Doc == nil && cat.HTML != "" {
+			doc, err := parsers.FromString(cat.HTML)
+			if err != nil {
+				continue
+			}
+			cat.Doc = doc
+		} else if cat.Doc == nil && cat.HTML == "" {
 			continue
 		}
 		cat.Doc.Find("a").Each(func(i int, sel *goquery.Selection) {
 			href, exists := sel.Attr("href")
 			if exists && href != "" && href != "/" && href != "#" {
 				articleURL := urls.PrepareURL(href, cat.URL)
-				if newspaper.IsValidCategoryURL(articleURL) && articleURL != s.URL && articleURL != cat.URL {
+				if newspaper.IsLikelyArticleURL(articleURL) && articleURL != s.URL && articleURL != cat.URL {
 					// Only include articles from the same domain as the source
 					parsedArticleURL, err := urls.Parse(articleURL)
 					if err != nil {
 						return
 					}
-					fmt.Println("Found article URL:", parsedArticleURL.String())
 					if parsedArticleURL.Domain == sourceDomain {
 						// Skip navigation links - only include links that look like articles
 						// Articles typically have IDs, dates, or specific patterns
-						if s.isLikelyArticleURL(articleURL) {
-							title := sel.Text()
-							article := newspaper.Article{
-								URL:       articleURL,
-								SourceURL: cat.URL,
-								Title:     title,
-								Config:    s.Config,
-							}
-							articles = append(articles, article)
+						title := sel.Text()
+						article := newspaper.Article{
+							URL:       articleURL,
+							SourceURL: cat.URL,
+							Title:     title,
+							Config:    s.Config,
 						}
+						articles = append(articles, article)
 					}
 				}
 			}
@@ -559,22 +556,21 @@ func (s *DefaultSource) CategoriesToArticles() []newspaper.Article {
 	return articles
 }
 
-// GenerateArticles creates the list of Article objects
-func (s *DefaultSource) GenerateArticles(limit int, onlyInPath bool) {
-	categoryArticles := s.CategoriesToArticles()
-	feedArticles := s.FeedsToArticles()
+// GetArticles creates the list of Article objects
+func (s *DefaultSource) GetArticles(limit int, onlyInPath bool) []newspaper.Article {
+	categoryArticles := s.categoriesToArticles()
+	feedArticles := s.feedsToArticles()
 
 	allArticles := append(feedArticles, categoryArticles...)
 
 	// Remove duplicates
-	uniqueMap := make(map[string]newspaper.Article)
-	for _, article := range allArticles {
-		uniqueMap[article.URL] = article
-	}
-	uniqueArticles := make([]newspaper.Article, 0, len(uniqueMap))
-	for _, article := range uniqueMap {
-		uniqueArticles = append(uniqueArticles, article)
-	}
+	uniqueArticles := helpers.UniqueStructByKey(
+		allArticles,
+		func(a newspaper.Article) string {
+			return a.URL
+		},
+		helpers.UniqueOptions{CaseSensitive: true, PreserveOrder: true},
+	)
 
 	if onlyInPath {
 		currentDomain := s.ParsedURL.Domain
@@ -604,6 +600,7 @@ func (s *DefaultSource) GenerateArticles(limit int, onlyInPath bool) {
 		s.Articles = uniqueArticles
 	}
 
+	return s.Articles
 }
 
 // DownloadArticles downloads all articles
@@ -646,60 +643,22 @@ func (s *DefaultSource) ParseArticles() {
 	s.IsParsed = true
 }
 
+// -----------------------------------------------------------------
+// Utility methods
+// -----------------------------------------------------------------
+
+// extractDescription sets the description from meta tags
+func (s *DefaultSource) extractDescription() {
+	if s.Doc == nil {
+		return
+	}
+	description, exists := s.Doc.Find("meta[name='description']").Attr("content")
+	if exists {
+		s.Description = description
+	}
+}
+
 // Size returns the number of articles
 func (s *DefaultSource) Size() int {
 	return len(s.Articles)
-}
-
-// CleanMemoCache clears the memoization cache
-func (s *DefaultSource) CleanMemoCache() {
-	// TODO: implement if caching is added
-}
-
-// FeedURLs returns a list of feed URLs
-func (s *DefaultSource) FeedURLs() []string {
-	urls := []string{}
-	for _, feed := range s.Feeds {
-		urls = append(urls, feed.URL)
-	}
-	return urls
-}
-
-// CategoryURLs returns a list of category URLs
-func (s *DefaultSource) CategoryURLs() []string {
-	urls := []string{}
-	for _, cat := range s.Categories {
-		urls = append(urls, cat.URL)
-	}
-	return urls
-}
-
-// ArticleURLs returns a list of article URLs
-func (s *DefaultSource) ArticleURLs() []string {
-	urls := []string{}
-	for _, article := range s.Articles {
-		urls = append(urls, article.URL)
-	}
-	return urls
-}
-
-// PrintSummary prints a summary of the source
-func (s *DefaultSource) PrintSummary() {
-	fmt.Println(s.String())
-}
-
-// String returns a string representation of the source
-func (s *DefaultSource) String() string {
-	res := fmt.Sprintf("Source (\n\turl=%s\n\tbrand=%s\n\tdomain=%s\n\tlen(articles)=%d\n\tdescription=%s\n)",
-		s.URL, s.ParsedURL.Brand(), s.ParsedURL.Domain, len(s.Articles), s.Description[:helpers.Min(50, len(s.Description))])
-
-	res += "\n 10 sample Articles: \n"
-	for i, article := range s.Articles[:helpers.Min(10, len(s.Articles))] {
-		res += fmt.Sprintf("%d: %s\n", i+1, article.URL)
-	}
-
-	res += "\ncategory_urls: \n" + strings.Join(s.CategoryURLs(), "\n")
-	res += "\nfeed_urls:\n" + strings.Join(s.FeedURLs(), "\n")
-
-	return res
 }
