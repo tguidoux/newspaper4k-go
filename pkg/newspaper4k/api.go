@@ -77,17 +77,11 @@ func NewArticle(url string) (*newspaper.Article, error) {
 	if err != nil {
 		return nil, fmt.Errorf("input url bad format: %w", err)
 	}
-	sourceURL := fmt.Sprintf("%s://%s", parsedURL.Scheme, parsedURL.Domain)
-	preparedURL := urls.PrepareURL(url, sourceURL)
-
-	if sourceURL == "" {
-		return nil, fmt.Errorf("input url bad format")
-	}
 
 	article := &newspaper.Article{
 		Config:        configuration.NewConfiguration(),
-		SourceURL:     sourceURL,
-		URL:           preparedURL,
+		SourceURL:     "",
+		URL:           parsedURL.String(),
 		Title:         "",
 		DownloadState: newspaper.NotStarted,
 		IsParsed:      false,
