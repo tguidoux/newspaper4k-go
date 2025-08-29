@@ -1,4 +1,4 @@
-package newspaper
+package constants
 
 // MOTLEY_REPLACEMENT is used for cleaning title text
 var MOTLEY_REPLACEMENT = []string{"&#65533;", ""}
@@ -14,6 +14,9 @@ const A_HREF_TAG_SELECTOR = "//a[contains(@href, '/tag/')] | //a[contains(@href,
 
 // RE_LANG regex pattern for language codes
 const RE_LANG = "^[A-Za-z]{2}$"
+
+// RE_URL regex pattern for URL extraction
+const RE_URL = `^(http:\/\/www\.|https:\/\/www\.|http:\/\/|https:\/\/|\/|\/\/)?[A-z0-9_-]*?[:]?[A-z0-9_-]*?[@]?[A-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,5}(:[0-9]{1,5})?(\/.*)?$`
 
 // AUTHOR_ATTRS attributes to look for author information
 var AUTHOR_ATTRS = []string{"name", "rel", "itemprop", "class", "id", "property"}
@@ -309,6 +312,46 @@ var URL_STOPWORDS = []string{
 	"youtube",
 }
 
+var URL_GOODWORDS = []string{
+	"article",
+	"articles",
+	"blog",
+	"blogs",
+	"column",
+	"columns",
+	"detail",
+	"editorial",
+	"feature",
+	"features",
+	"gallery",
+	"news",
+	"opinion",
+	"photo",
+	"photos",
+	"post",
+	"posts",
+	"preview",
+	"report",
+	"reports",
+	"review",
+	"reviews",
+	"story",
+	"stories",
+	"video",
+	"videos",
+	"p",
+	"content",
+	"id",
+	"read",
+	"live",
+	"media",
+	"press",
+	"coverage",
+	"interview",
+	"analysis",
+	"insight",
+}
+
 // VIDEO_TAGS tags to search for video elements
 var VIDEO_TAGS = []string{"iframe", "embed", "object", "video"}
 
@@ -326,6 +369,17 @@ var CATEGORY_URL_PREFIXES = []string{
 	"sections",
 	"cat",
 	"cats",
+}
+
+var NOT_CATEGORY_URL_PREFIXES = []string{
+	"tag",
+	"tags",
+	"login",
+	"signup",
+	"register",
+	"search",
+	"vote",
+	"from",
 }
 
 var COMMON_FEED_SUFFIXES = []string{
@@ -354,4 +408,57 @@ var COMMON_FEED_SUFFIXES = []string{
 	"/rss/",
 	"/rss.xml",
 	"/rss.xml?format=xml",
+}
+
+var COMMON_TRACKING_PARAMS = []string{
+	"utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
+	"gclid", "fbclid", "mc_cid", "mc_eid", "ref", "referrer",
+	"lmd_medium", "lmd_campaign", "lmd_content", "lmd_term", "lmd_source", "lmd_creation", "lmd_cid", "lmd_eid", "lmd_sequence", "lmd_type_de_page", "lmd_position",
+	"icn", "ici", "icm", "ict", "icid",
+	"mkt_tok", "icid", "soc_src", "soc_trk",
+	"pk_campaign", "pk_kwd", "pk_source",
+	"yclid", "dclid", "msclkid",
+	"igshid", "m", "spref", "vero_conv",
+	"mkt_tok", "icid", "soc_src", "soc_trk",
+	"pk_campaign", "pk_kwd", "pk_source",
+	"yclid", "dclid", "msclkid",
+	"igshid", "m", "spref", "vero_conv",
+	"epik", "vero_id", "vero_email",
+	"mc", "mca", "mcb", "mcc",
+	"oly_enc_id", "oly_anon_id",
+	"gclsrc", "wbraid",
+	"campaignid", "adgroupid", "adid", "network", "device", "devicemodel", "creative", "placement", "matchtype",
+	"keyword", "target", "targetid", "loc_physical_ms", "loc_interest_ms",
+	"feeditemid", "adposition", "aceid", "gclid", "dclid",
+}
+
+var COMMON_NOT_ARTICLE_URL_STOPWORDS = []string{
+	"/newest",
+	"/past",
+	"/comments",
+	"/ask",
+	"/show",
+	"/jobs",
+	"/submit",
+	"/news",
+	"/front",
+	"/newcomments",
+	"/login",
+	"/logout",
+	"/user",
+	"/from",
+	"/vote",
+	"/hide",
+}
+
+var COMMON_ARTICLE_URL_GOODWORDS = []string{
+	"/article",
+	"/story",
+	"/post",
+	"/news/",
+	"/blog/",
+	"/p/",
+	"/entry",
+	"/content",
+	"/item?id=", // Hacker News style
 }
