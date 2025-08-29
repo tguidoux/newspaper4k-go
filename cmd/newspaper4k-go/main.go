@@ -155,14 +155,26 @@ func demonstrateArticleUsage() {
 	}
 
 	// Display results
-	art.ToJSON()
+	j1, err := art.ToJSON()
+	if err != nil {
+		fmt.Printf("Error converting article to JSON: %v\n", err)
+		return
+	}
+	fmt.Println("\nArticle fetched from URL and parsed:")
+	fmt.Println(j1)
 
 	art2, err := newspaper4k.NewArticleFromHTML(testHTML)
 	if err != nil {
 		fmt.Printf("Error fetching article: %v\n", err)
 		return
 	}
-	art2.ToJSON()
+	j2, err := art2.ToJSON()
+	if err != nil {
+		fmt.Printf("Error converting article to JSON: %v\n", err)
+		return
+	}
+	fmt.Println("\nArticle parsed from provided HTML:")
+	fmt.Println(j2)
 
 	fmt.Println("\nDemo completed successfully!")
 }
