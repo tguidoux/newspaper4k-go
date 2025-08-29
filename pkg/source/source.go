@@ -29,8 +29,6 @@ type Source interface {
 	feedsToArticles() []newspaper.Article
 	categoriesToArticles() []newspaper.Article
 	GetArticles(limit int, onlyInPath bool)
-	DownloadArticles() []newspaper.Article
-	ParseArticles()
 	Size() int
 	FeedURLs() []string
 	CategoryURLs() []string
@@ -109,12 +107,6 @@ func (s *DefaultSource) BuildWithParams(params BuildParams) error {
 
 	inputHTML := params.InputHTML
 	onlyHomepage := params.OnlyHomepage
-	// onlyInPath := params.OnlyInPath
-	limitArticles := params.LimitArticles
-	if limitArticles <= 0 {
-		// default is intentionally unused here; limitArticles is currently unused elsewhere
-		_ = 5000
-	}
 	limitFeeds := params.LimitFeeds
 	if limitFeeds <= 0 {
 		limitFeeds = 100
@@ -161,10 +153,6 @@ func (s *DefaultSource) BuildWithParams(params BuildParams) error {
 	if !onlyHomepage {
 		s.GetFeeds(limitFeeds)
 	}
-
-	// s.GetArticles(limitArticles, onlyInPath)
-	// s.DownloadArticles()
-	// s.ParseArticles()
 
 	return nil
 }
@@ -351,7 +339,7 @@ func (s *DefaultSource) GetFeeds(limitFeeds int) {
 		if err != nil {
 			continue
 		}
-		_ = resp.Body.Close()
+		err = resp.Body.Close()
 		if err != nil {
 			continue
 		}
@@ -613,49 +601,6 @@ func (s *DefaultSource) GetArticles(limit int, onlyInPath bool) []newspaper.Arti
 	}
 
 	return s.Articles
-}
-
-// DownloadArticles downloads all articles
-func (s *DefaultSource) DownloadArticles() []newspaper.Article {
-	client := helpers.CreateHTTPClient(s.Config.RequestsParams.Timeout)
-	for i, article := range s.Articles {
-		// Simple download
-		resp, err := client.Get(article.URL)
-		if err != nil || resp.StatusCode >= 400 {
-			continue
-		}
-
-		htmlBytes, err := io.ReadAll(resp.Body)
-		if err != nil {
-			continue
-		}
-		_ = resp.Body.Close()
-		if err != nil {
-			continue
-		}
-		s.Articles[i].HTML = string(htmlBytes)
-		s.Articles[i].DownloadState = newspaper.Success
-	}
-	return s.Articles
-}
-
-// ParseArticles parses all articles
-func (s *DefaultSource) ParseArticles() {
-	for i, article := range s.Articles {
-		if article.HTML != "" {
-			doc, err := goquery.NewDocumentFromReader(strings.NewReader(article.HTML))
-			if err == nil {
-				s.Articles[i].Doc = doc
-				// Basic parsing
-				title := doc.Find("title").First().Text()
-				if title != "" {
-					s.Articles[i].Title = title
-				}
-				// Add more parsing logic as needed
-			}
-		}
-	}
-	s.IsParsed = true
 }
 
 // -----------------------------------------------------------------
