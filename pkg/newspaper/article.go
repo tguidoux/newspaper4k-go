@@ -612,7 +612,7 @@ func (a *Article) GetCleanDoc() *goquery.Document {
 }
 
 // ToJSON creates a JSON string from the article data
-func (a *Article) ToJSON() (string, error) {
+func (a *Article) ToFullJSON() (string, error) {
 	if err := a.ThrowIfNotParsedVerbose(); err != nil {
 		return "", fmt.Errorf("you must parse() an article first: %w", err)
 	}
@@ -712,7 +712,7 @@ func (a *Article) ToJSON() (string, error) {
 	return string(b), nil
 }
 
-func (a *Article) ToSimpleJSON() (string, error) {
+func (a *Article) ToJSON() (string, error) {
 	if err := a.ThrowIfNotParsedVerbose(); err != nil {
 		return "", fmt.Errorf("you must parse() an article first: %w", err)
 	}

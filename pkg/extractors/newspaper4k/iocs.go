@@ -111,7 +111,6 @@ func (xe *IOCsExtractor) Parse(a *newspaper.Article) error {
 	a.Domains = helpers.UniqueStrings(domains, helpers.UniqueOptions{CaseSensitive: false, PreserveOrder: true})
 	a.IPv4s = helpers.UniqueStrings(ipv4s, helpers.UniqueOptions{CaseSensitive: false, PreserveOrder: true})
 	a.IPv6s = helpers.UniqueStrings(ipv6s, helpers.UniqueOptions{CaseSensitive: false, PreserveOrder: true})
-	a.OtherURLs = helpers.UniqueStrings(append(urls, otherurls...), helpers.UniqueOptions{CaseSensitive: false, PreserveOrder: true})
 	a.Files = helpers.UniqueStrings(files, helpers.UniqueOptions{CaseSensitive: false, PreserveOrder: true})
 	a.Bitcoins = helpers.UniqueStrings(bitcoins, helpers.UniqueOptions{CaseSensitive: false, PreserveOrder: true})
 	a.MD5s = helpers.UniqueStrings(md5s, helpers.UniqueOptions{CaseSensitive: false, PreserveOrder: true})
@@ -128,12 +127,12 @@ func (xe *IOCsExtractor) Parse(a *newspaper.Article) error {
 		a.Doc.Find("a").Each(func(i int, s *goquery.Selection) {
 			href, _ := s.Attr("href")
 			if href != "" {
-				a.OtherURLs = append(a.OtherURLs, href)
+				otherurls = append(otherurls, href)
 			}
 		})
-		// dedupe again
-		a.OtherURLs = helpers.UniqueStrings(a.OtherURLs, helpers.UniqueOptions{CaseSensitive: false, PreserveOrder: true})
 	}
+
+	a.OtherURLs = helpers.UniqueStrings(append(urls, otherurls...), helpers.UniqueOptions{CaseSensitive: false, PreserveOrder: true})
 
 	return nil
 }
