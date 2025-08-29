@@ -221,3 +221,140 @@ func TestUniqueStringsByKey(t *testing.T) {
 		})
 	}
 }
+func TestUniqueStructByKey(t *testing.T) {
+	type testStruct struct {
+		ID    int
+		Value string
+	}
+
+	tests := []struct {
+		name     string
+		input    []testStruct
+		keyFunc  func(testStruct) string
+		opts     UniqueOptions
+		expected []testStruct
+	}{
+		{
+			name:     "empty slice",
+			input:    []testStruct{},
+			keyFunc:  func(ts testStruct) string { return ts.Value },
+			opts:     UniqueOptions{CaseSensitive: true, PreserveOrder: true},
+			expected: []testStruct{},
+		},
+		{
+			name: "no duplicates, case sensitive, preserve order",
+			input: []testStruct{
+				{ID: 1, Value: "a"},
+				{ID: 2, Value: "b"},
+				{ID: 3, Value: "c"},
+			},
+			keyFunc: func(ts testStruct) string { return ts.Value },
+			opts:    UniqueOptions{CaseSensitive: true, PreserveOrder: true},
+			expected: []testStruct{
+				{ID: 1, Value: "a"},
+				{ID: 2, Value: "b"},
+				{ID: 3, Value: "c"},
+			},
+		},
+		{
+			name: "with duplicates, case sensitive, preserve order",
+			input: []testStruct{
+				{ID: 1, Value: "a"},
+				{ID: 2, Value: "b"},
+				{ID: 3, Value: "a"},
+				{ID: 4, Value: "c"},
+				{ID: 5, Value: "b"},
+			},
+			keyFunc: func(ts testStruct) string { return ts.Value },
+			opts:    UniqueOptions{CaseSensitive: true, PreserveOrder: true},
+			expected: []testStruct{
+				{ID: 1, Value: "a"},
+				{ID: 2, Value: "b"},
+				{ID: 4, Value: "c"},
+			},
+		},
+		{
+			name: "with duplicates, case insensitive, preserve order",
+			input: []testStruct{
+				{ID: 1, Value: "A"},
+				{ID: 2, Value: "b"},
+				{ID: 3, Value: "a"},
+				{ID: 4, Value: "C"},
+				{ID: 5, Value: "B"},
+			},
+			keyFunc: func(ts testStruct) string { return ts.Value },
+			opts:    UniqueOptions{CaseSensitive: false, PreserveOrder: true},
+			expected: []testStruct{
+				{ID: 1, Value: "A"},
+				{ID: 2, Value: "b"},
+				{ID: 4, Value: "C"},
+			},
+		},
+		{
+			name: "with duplicates, case insensitive, no preserve order",
+			input: []testStruct{
+				{ID: 1, Value: "A"},
+				{ID: 2, Value: "b"},
+				{ID: 3, Value: "a"},
+				{ID: 4, Value: "C"},
+				{ID: 5, Value: "B"},
+			},
+			keyFunc: func(ts testStruct) string { return ts.Value },
+			opts:    UniqueOptions{CaseSensitive: false, PreserveOrder: false},
+			expected: []testStruct{
+				{ID: 1, Value: "A"},
+				{ID: 2, Value: "b"},
+				{ID: 4, Value: "C"},
+			}, // order may vary
+		},
+		{
+			name: "unique by custom key",
+			input: []testStruct{
+				{ID: 1, Value: "apple"},
+				{ID: 2, Value: "avocado"},
+				{ID: 3, Value: "banana"},
+				{ID: 4, Value: "cherry"},
+			},
+			keyFunc: func(ts testStruct) string { return ts.Value[:1] }, // first letter
+			opts:    UniqueOptions{CaseSensitive: true, PreserveOrder: true},
+			expected: []testStruct{
+				{ID: 1, Value: "apple"},
+				{ID: 3, Value: "banana"},
+				{ID: 4, Value: "cherry"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := UniqueStructByKey(tt.input, tt.keyFunc, tt.opts)
+			if tt.opts.PreserveOrder {
+				if !reflect.DeepEqual(result, tt.expected) {
+					t.Errorf("UniqueStructByKey() = %v, expected %v", result, tt.expected)
+				}
+			} else {
+				// For non-preserving order, check length and that all expected items are present
+				if len(result) != len(tt.expected) {
+					t.Errorf("UniqueStructByKey() length = %d, expected %d", len(result), len(tt.expected))
+				}
+				expectedMap := make(map[string]bool)
+				for _, item := range tt.expected {
+					key := tt.keyFunc(item)
+					if !tt.opts.CaseSensitive {
+						key = strings.ToLower(key)
+					}
+					expectedMap[key] = true
+				}
+				for _, item := range result {
+					key := tt.keyFunc(item)
+					if !tt.opts.CaseSensitive {
+						key = strings.ToLower(key)
+					}
+					if !expectedMap[key] {
+						t.Errorf("UniqueStructByKey() contains unexpected item %v", item)
+					}
+				}
+			}
+		})
+	}
+}

@@ -70,12 +70,16 @@ func Min(a, b int) int {
 
 // UniqueStringsByKey removes duplicates from a slice using a key function
 func UniqueStringsByKey(items []string, keyFunc func(string) string, opts UniqueOptions) []string {
+	return UniqueStructByKey(items, keyFunc, opts)
+}
+
+func UniqueStructByKey[T any](items []T, keyFunc func(T) string, opts UniqueOptions) []T {
 	if len(items) == 0 {
 		return items
 	}
 
 	seen := make(map[string]bool)
-	result := make([]string, 0, len(items))
+	result := make([]T, 0, len(items))
 
 	for _, item := range items {
 		key := keyFunc(item)
