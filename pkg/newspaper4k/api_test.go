@@ -137,6 +137,13 @@ func TestNewArticleFromHTML(t *testing.T) {
 		t.Fatalf("Error creating article from HTML: %v", err)
 	}
 
+	extractors := DefaultExtractors(art.Config)
+
+	err = art.Build(extractors)
+	if err != nil {
+		t.Fatalf("Error building article: %v", err)
+	}
+
 	// Test basic fields
 	if art.Title == "" {
 		t.Error("Title should not be empty")
@@ -169,6 +176,13 @@ func TestArticleAuthors(t *testing.T) {
 		t.Fatalf("Error creating article: %v", err)
 	}
 
+	extractors := DefaultExtractors(art.Config)
+
+	err = art.Build(extractors)
+	if err != nil {
+		t.Fatalf("Error building article: %v", err)
+	}
+
 	if len(art.Authors) == 0 {
 		t.Error("Authors should not be empty")
 	}
@@ -193,6 +207,13 @@ func TestArticleMetaData(t *testing.T) {
 		t.Fatalf("Error creating article: %v", err)
 	}
 
+	extractors := DefaultExtractors(art.Config)
+
+	err = art.Build(extractors)
+	if err != nil {
+		t.Fatalf("Error building article: %v", err)
+	}
+
 	if art.MetaDescription == "" {
 		t.Error("Meta description should not be empty")
 	}
@@ -211,6 +232,13 @@ func TestArticleImages(t *testing.T) {
 	art, err := NewArticleFromHTML(testHTML)
 	if err != nil {
 		t.Fatalf("Error creating article: %v", err)
+	}
+
+	extractors := DefaultExtractors(art.Config)
+
+	err = art.Build(extractors)
+	if err != nil {
+		t.Fatalf("Error building article: %v", err)
 	}
 
 	if len(art.Images) == 0 {
@@ -239,6 +267,13 @@ func TestArticleVideos(t *testing.T) {
 	art, err := NewArticleFromHTML(testHTML)
 	if err != nil {
 		t.Fatalf("Error creating article: %v", err)
+	}
+
+	extractors := DefaultExtractors(art.Config)
+
+	err = art.Build(extractors)
+	if err != nil {
+		t.Fatalf("Error building article: %v", err)
 	}
 
 	if len(art.Movies) == 0 {
@@ -270,6 +305,13 @@ func TestArticleKeywords(t *testing.T) {
 		t.Fatalf("Error creating article: %v", err)
 	}
 
+	extractors := DefaultExtractors(art.Config)
+
+	err = art.Build(extractors)
+	if err != nil {
+		t.Fatalf("Error building article: %v", err)
+	}
+
 	if len(art.Keywords) == 0 {
 		t.Error("Keywords should not be empty")
 	}
@@ -292,6 +334,13 @@ func TestArticleSummary(t *testing.T) {
 		t.Fatalf("Error creating article: %v", err)
 	}
 
+	extractors := DefaultExtractors(art.Config)
+
+	err = art.Build(extractors)
+	if err != nil {
+		t.Fatalf("Error building article: %v", err)
+	}
+
 	if art.Summary == "" {
 		t.Error("Summary should not be empty")
 	}
@@ -308,6 +357,13 @@ func TestArticlePublishDate(t *testing.T) {
 		t.Fatalf("Error creating article: %v", err)
 	}
 
+	extractors := DefaultExtractors(art.Config)
+
+	err = art.Build(extractors)
+	if err != nil {
+		t.Fatalf("Error building article: %v", err)
+	}
+
 	if art.PublishDate == nil {
 		t.Error("Publish date should not be nil")
 	}
@@ -319,6 +375,13 @@ func TestArticleLanguage(t *testing.T) {
 		t.Fatalf("Error creating article: %v", err)
 	}
 
+	extractors := DefaultExtractors(art.Config)
+
+	err = art.Build(extractors)
+	if err != nil {
+		t.Fatalf("Error building article: %v", err)
+	}
+
 	if art.Language.String() != "en" {
 		t.Errorf("Expected language 'en', got %q", art.Language.String())
 	}
@@ -328,6 +391,13 @@ func TestArticleToJSON(t *testing.T) {
 	art, err := NewArticleFromHTML(testHTML)
 	if err != nil {
 		t.Fatalf("Error creating article: %v", err)
+	}
+
+	extractors := DefaultExtractors(art.Config)
+
+	err = art.Build(extractors)
+	if err != nil {
+		t.Fatalf("Error building article: %v", err)
 	}
 
 	jsonStr, err := art.ToJSON()
@@ -357,6 +427,13 @@ func TestArticleGettersAndSetters(t *testing.T) {
 	art, err := NewArticleFromHTML(testHTML)
 	if err != nil {
 		t.Fatalf("Error creating article: %v", err)
+	}
+
+	extractors := DefaultExtractors(art.Config)
+
+	err = art.Build(extractors)
+	if err != nil {
+		t.Fatalf("Error building article: %v", err)
 	}
 
 	// Test GetTitle
@@ -394,6 +471,13 @@ func TestArticleIsValidBody(t *testing.T) {
 	art, err := NewArticleFromHTML(testHTML)
 	if err != nil {
 		t.Fatalf("Error creating article: %v", err)
+	}
+
+	extractors := DefaultExtractors(art.Config)
+
+	err = art.Build(extractors)
+	if err != nil {
+		t.Fatalf("Error building article: %v", err)
 	}
 
 	// Check word count
