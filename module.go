@@ -1,5 +1,4 @@
-// Package mymodule provides a template for Go modules. Simply clone this GitHub repository and start coding.
-package mymodule
+package newspaper4kgo
 
 const (
 	// Version holds the semantic version number of this module.
