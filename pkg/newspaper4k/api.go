@@ -21,6 +21,7 @@ func DefaultExtractors(config *configuration.Configuration) []newspaper.Extracto
 		newspaper4k.NewCategoryExtractor(config),
 		newspaper4k.NewImageExtractor(config),
 		newspaper4k.NewVideoExtractor(),
+		newspaper4k.NewIOCsExtractor(config),
 	}
 }
 
