@@ -7,6 +7,7 @@ import (
 	"github.com/tguidoux/newspaper4k-go/internal/helpers"
 	"github.com/tguidoux/newspaper4k-go/internal/ioc"
 	"github.com/tguidoux/newspaper4k-go/internal/parsers"
+	urlslib "github.com/tguidoux/newspaper4k-go/internal/urls"
 	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
 	"github.com/tguidoux/newspaper4k-go/pkg/newspaper"
 )
@@ -132,6 +133,28 @@ func (xe *IOCsExtractor) Parse(a *newspaper.Article) error {
 		})
 	}
 
+	// Parse and normalize other URLs
+	preparedSourceURL, err := urlslib.Parse(a.SourceURL)
+	if err != nil {
+		preparedSourceURL = nil
+	}
+	for i, u := range otherurls {
+		parsed, err := urlslib.Parse(u)
+		if err != nil {
+			otherurls[i] = u
+			continue
+		}
+
+		err = parsed.Prepare(preparedSourceURL)
+		if err != nil {
+			continue
+		}
+
+		otherurls[i] = parsed.String()
+
+	}
+
+	// Combine and deduplicate all URLs
 	a.OtherURLs = helpers.UniqueStrings(append(urls, otherurls...), helpers.UniqueOptions{CaseSensitive: false, PreserveOrder: true})
 
 	return nil
