@@ -20,6 +20,7 @@ type Configuration struct {
 	MaxSummary           int
 	MaxSummarySent       int
 	MaxFileMemo          int
+	MaxWorkers           int
 	TopImageSettings     TopImageSettings
 	MemorizeArticles     bool
 	DisableCategoryCache bool
@@ -37,6 +38,7 @@ type Configuration struct {
 	IgnoredContentTypes  map[string]string
 	UseCachedCategories  bool
 	DownloadOptions      DownloadOptions
+	MaxFeeds             int
 }
 
 // TopImageSettings holds settings for finding top image.
@@ -62,6 +64,8 @@ func NewConfiguration() *Configuration {
 		MaxTitle:             200,
 		MaxText:              100000,
 		MaxKeywords:          35,
+		MaxWorkers:           20,
+		MaxFeeds:             100,
 		MaxAuthors:           10,
 		MaxSummary:           5000,
 		MaxSummarySent:       5,

@@ -72,10 +72,6 @@ func (s *DefaultSource) BuildWithParams(params BuildParams) error {
 
 	inputHTML := params.InputHTML
 	onlyHomepage := params.OnlyHomepage
-	limitFeeds := params.LimitFeeds
-	if limitFeeds <= 0 {
-		limitFeeds = 100
-	}
 	limitCategories := params.LimitCategories
 	if limitCategories <= 0 {
 		limitCategories = 100
@@ -116,7 +112,7 @@ func (s *DefaultSource) BuildWithParams(params BuildParams) error {
 	// Step 3: Download and parse feeds, generate articles
 	// we skip feeds if onlyHomepage is true
 	if !onlyHomepage {
-		s.GetFeeds(limitFeeds)
+		s.GetFeeds()
 	}
 
 	return nil
@@ -258,7 +254,8 @@ func (s *DefaultSource) BuildCategories() {
 // -----------------------------------------------------------------
 // Feeds
 // -----------------------------------------------------------------
-func (s *DefaultSource) GetFeeds(limitFeeds int) {
+
+func (s *DefaultSource) getCommonFeeds() []string {
 	commonFeedSuffixes := constants.COMMON_FEED_SUFFIXES
 	commonFeedURLs := []string{}
 
@@ -266,7 +263,7 @@ func (s *DefaultSource) GetFeeds(limitFeeds int) {
 		commonFeedURLs = append(commonFeedURLs, s.URL+suffix)
 	}
 
-	// Check for medium.com specific feeds
+	// medium.com special-case
 	if strings.Contains(s.URL, "medium.com") {
 		parsed, _ := url.Parse(s.URL)
 		if strings.HasPrefix(parsed.Path, "/@") {
@@ -287,31 +284,49 @@ func (s *DefaultSource) GetFeeds(limitFeeds int) {
 		}
 	}
 
+	if s.Config.MaxFeeds > 0 && len(commonFeedURLs) > s.Config.MaxFeeds {
+		commonFeedURLs = commonFeedURLs[:s.Config.MaxFeeds]
+	}
+
+	return commonFeedURLs
+}
+
+func (s *DefaultSource) checkFeed(feedURL string) (string, bool, error) {
+	fmt.Println("Checking feed", feedURL)
+	client := helpers.CreateHTTPClient(s.Config.RequestsParams.Timeout)
+
+	resp, err := client.Get(feedURL)
+	if err != nil || resp.StatusCode >= 300 {
+		return "", false, fmt.Errorf("invalid status code while fetching rss")
+	}
+
+	rssBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to read rss")
+	}
+	err = resp.Body.Close()
+	if err != nil {
+		return "", false, fmt.Errorf("failed to close rss body")
+	}
+	rss := string(rssBytes)
+
+	return rss, true, nil
+}
+
+func (s *DefaultSource) GetFeeds() {
+
+	commonFeedURLs := s.getCommonFeeds()
+
 	// Download and check feeds
 	validFeeds := []newspaper.Feed{}
-	client := helpers.CreateHTTPClient(s.Config.RequestsParams.Timeout)
-	// Limit feed URLs to check
-	if limitFeeds > 0 && len(commonFeedURLs) > limitFeeds {
-		commonFeedURLs = commonFeedURLs[:limitFeeds]
-	}
+
 	for _, feedURL := range commonFeedURLs {
-		resp, err := client.Get(feedURL)
-		if err != nil || resp.StatusCode >= 300 {
-			continue
+		url := urls.PrepareURL(feedURL, feedURL)
+		rss, valid, err := s.checkFeed(url)
+		if valid && err != nil {
+			feed := newspaper.Feed{URL: url, RSS: rss}
+			validFeeds = append(validFeeds, feed)
 		}
-
-		rssBytes, err := io.ReadAll(resp.Body)
-		if err != nil {
-			continue
-		}
-		err = resp.Body.Close()
-		if err != nil {
-			continue
-		}
-		rss := string(rssBytes)
-
-		feed := newspaper.Feed{URL: urls.PrepareURL(feedURL, feedURL), RSS: rss}
-		validFeeds = append(validFeeds, feed)
 	}
 
 	// Extract feed URLs from categories

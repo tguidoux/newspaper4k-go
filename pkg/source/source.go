@@ -11,7 +11,9 @@ type Source interface {
 	Download()
 	Parse()
 	SearchCategories()
-	GetFeeds(limitFeeds int)
+	GetFeeds()
+	getCommonFeeds() []string
+	checkFeed(feedURL string) (string, bool, error)
 	extractDescription()
 	DownloadCategories()
 	BuildCategories()
@@ -37,5 +39,4 @@ type BuildParams struct {
 	OnlyInPath      bool
 	LimitCategories int
 	LimitArticles   int
-	LimitFeeds      int
 }
