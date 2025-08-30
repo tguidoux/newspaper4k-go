@@ -64,23 +64,16 @@ func NewDefaultSource(request SourceRequest) (*DefaultSource, error) {
 
 // Build encapsulates download and basic parsing
 func (s *DefaultSource) Build() error {
-	return s.BuildWithParams(BuildParams{InputHTML: "", OnlyHomepage: false, OnlyInPath: false, LimitArticles: 5000})
+	return s.BuildWithParams(DefaultBuildParams())
 }
 
 // Build encapsulates download and basic parsing
 func (s *DefaultSource) BuildWithParams(params BuildParams) error {
 
-	inputHTML := params.InputHTML
-	onlyHomepage := params.OnlyHomepage
-	limitCategories := params.LimitCategories
-	if limitCategories <= 0 {
-		limitCategories = 100
-	}
-
 	// Step 1: Download and parse homepage
 	// if InputHTML is provided, use it instead of downloading
-	if inputHTML != "" {
-		s.HTML = inputHTML
+	if params.InputHTML != "" {
+		s.HTML = params.InputHTML
 	} else {
 		err := s.Download()
 		if err != nil {
@@ -94,7 +87,7 @@ func (s *DefaultSource) BuildWithParams(params BuildParams) error {
 
 	// Step 2: Set categories and feeds, download and parse them
 	// if onlyHomepage is true, skip categories and feeds
-	if onlyHomepage {
+	if params.OnlyHomepage {
 		s.Categories = []newspaper.Category{{URL: s.URL, HTML: s.HTML, Doc: s.Doc}}
 	} else {
 		err := s.SearchCategories()
@@ -105,14 +98,14 @@ func (s *DefaultSource) BuildWithParams(params BuildParams) error {
 	}
 	s.BuildCategories()
 
-	if len(s.Categories) > limitCategories {
-		s.Categories = s.Categories[:limitCategories]
+	if len(s.Categories) > params.LimitCategories {
+		s.Categories = s.Categories[:params.LimitCategories]
 	}
 
-	// Step 3: Download and parse feeds, generate articles
+	// Step 3: Download and parse feed
 	// we skip feeds if onlyHomepage is true
-	if !onlyHomepage {
-		s.GetFeeds()
+	if !params.OnlyHomepage {
+		s.GetFeedsWithParams(params)
 	}
 
 	return nil
@@ -313,8 +306,7 @@ func (s *DefaultSource) checkFeed(feedURL string) (string, bool, error) {
 	return rss, true, nil
 }
 
-func (s *DefaultSource) GetFeeds() {
-
+func (s *DefaultSource) GetFeedsWithParams(params BuildParams) {
 	commonFeedURLs := s.getCommonFeeds()
 
 	// Download and check feeds
@@ -344,6 +336,10 @@ func (s *DefaultSource) GetFeeds() {
 	)
 
 	s.Feeds = validFeeds
+}
+
+func (s *DefaultSource) GetFeeds() {
+	s.GetFeedsWithParams(DefaultBuildParams())
 }
 
 // -----------------------------------------------------------------
@@ -536,8 +532,7 @@ func (s *DefaultSource) categoriesToArticles() []newspaper.Article {
 	return articles
 }
 
-// GetArticles creates the list of Article objects
-func (s *DefaultSource) GetArticles(limit int, onlyInPath bool) []newspaper.Article {
+func (s *DefaultSource) GetArticlesWithParams(params BuildParams) []newspaper.Article {
 	categoryArticles := s.categoriesToArticles()
 	feedArticles := s.feedsToArticles()
 
@@ -552,14 +547,7 @@ func (s *DefaultSource) GetArticles(limit int, onlyInPath bool) []newspaper.Arti
 		helpers.UniqueOptions{CaseSensitive: true, PreserveOrder: true},
 	)
 
-	if onlyInPath {
-		currentDomain := s.ParsedURL.Domain
-		currentPath := s.ParsedURL.Path
-		pathChunks := strings.Split(strings.Trim(currentPath, "/"), "/")
-		if len(pathChunks) > 0 && (strings.HasSuffix(pathChunks[len(pathChunks)-1], ".html") || strings.HasSuffix(pathChunks[len(pathChunks)-1], ".php")) {
-			pathChunks = pathChunks[:len(pathChunks)-1]
-		}
-		currentPath = "/" + strings.Join(pathChunks, "/") + "/"
+	if params.OnlySameDomain {
 
 		filteredArticles := []newspaper.Article{}
 		for _, article := range uniqueArticles {
@@ -567,20 +555,27 @@ func (s *DefaultSource) GetArticles(limit int, onlyInPath bool) []newspaper.Arti
 			if err != nil {
 				continue
 			}
-			if currentDomain == parsedArticleURL.Domain && strings.HasPrefix(parsedArticleURL.Path, currentPath) {
-				filteredArticles = append(filteredArticles, article)
+			if s.ParsedURL.Domain == parsedArticleURL.Domain {
+				if params.AllowSubDomain || (!params.AllowSubDomain && s.ParsedURL.Subdomain == parsedArticleURL.Subdomain) {
+					filteredArticles = append(filteredArticles, article)
+				}
 			}
 		}
 		uniqueArticles = filteredArticles
 	}
 
-	if limit > 0 && len(uniqueArticles) > limit {
-		s.Articles = uniqueArticles[:limit]
+	if params.LimitArticles > 0 && len(uniqueArticles) > params.LimitArticles {
+		s.Articles = uniqueArticles[:params.LimitArticles]
 	} else {
 		s.Articles = uniqueArticles
 	}
 
 	return s.Articles
+}
+
+// GetArticles creates the list of Article objects
+func (s *DefaultSource) GetArticles() []newspaper.Article {
+	return s.GetArticlesWithParams(DefaultBuildParams())
 }
 
 // -----------------------------------------------------------------

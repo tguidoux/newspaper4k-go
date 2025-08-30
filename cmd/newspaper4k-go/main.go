@@ -56,7 +56,7 @@ func main() {
 	}
 
 	fmt.Println("4. Getting articles:")
-	articles := src.GetArticles(10000, false)
+	articles := src.GetArticles()
 	fmt.Printf("   Articles retrieved (not built): %d\n", len(articles))
 
 	fmt.Println("5. Show few articles:")

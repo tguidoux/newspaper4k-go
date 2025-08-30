@@ -2,30 +2,19 @@ package source
 
 import (
 	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
-	"github.com/tguidoux/newspaper4k-go/pkg/newspaper"
 )
 
 // Source interface defines the methods for a news source
 type Source interface {
-	Build(inputHTML string, onlyHomepage bool, onlyInPath bool)
-	Download()
-	Parse()
-	SearchCategories()
+	Build() error
+	Download() error
+	Parse() error
+	SearchCategories() error
 	GetFeeds()
-	getCommonFeeds() []string
-	checkFeed(feedURL string) (string, bool, error)
-	extractDescription()
 	DownloadCategories()
 	BuildCategories()
-	feedsToArticles() []newspaper.Article
-	categoriesToArticles() []newspaper.Article
-	GetArticles(limit int, onlyInPath bool)
+	GetArticles()
 	Size() int
-	FeedURLs() []string
-	CategoryURLs() []string
-	ArticleURLs() []string
-	PrintSummary()
-	String() string
 }
 
 type SourceRequest struct {
@@ -36,7 +25,19 @@ type SourceRequest struct {
 type BuildParams struct {
 	InputHTML       string
 	OnlyHomepage    bool
-	OnlyInPath      bool
+	OnlySameDomain  bool
+	AllowSubDomain  bool
 	LimitCategories int
 	LimitArticles   int
+}
+
+func DefaultBuildParams() BuildParams {
+	return BuildParams{
+		InputHTML:       "",
+		OnlyHomepage:    false,
+		OnlySameDomain:  false,
+		AllowSubDomain:  true,
+		LimitCategories: 100,
+		LimitArticles:   1000,
+	}
 }
