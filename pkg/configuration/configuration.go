@@ -2,6 +2,9 @@ package configuration
 
 import (
 	"errors"
+	"fmt"
+
+	newspaper4kgo "github.com/tguidoux/newspaper4k-go"
 )
 
 // DownloadOptions contains options for downloading an article
@@ -79,7 +82,7 @@ func NewConfiguration() *Configuration {
 		CleanArticleHTML:     true,
 		HTTPSuccessOnly:      true,
 		language:             "",
-		RequestsParams:       RequestsParams{Timeout: 30, Proxies: map[string]string{}, Headers: map[string]string{"User-Agent": "newspaper/0.0.1"}},
+		RequestsParams:       RequestsParams{Timeout: 30, Proxies: map[string]string{}, Headers: map[string]string{"User-Agent": fmt.Sprintf("newspaper4k-go/%s", newspaper4kgo.Version)}},
 		NumberThreads:        10,
 		Verbose:              false,
 		ThreadTimeoutSeconds: 10,
