@@ -113,11 +113,12 @@ func (s *DefaultSource) BuildWithParams(params BuildParams) error {
 
 // Download downloads the HTML of the source
 func (s *DefaultSource) Download() error {
+
 	client := helpers.CreateHTTPClient(s.Config.RequestsParams.Timeout)
 	resp, err := client.Get(s.URL)
 	if err != nil {
 		// Handle error - could log or set a flag
-		return fmt.Errorf("failed to download URL: %v", err)
+		return fmt.Errorf("failed to download: %v", err)
 	}
 	defer func() {
 		err = resp.Body.Close()
@@ -172,6 +173,7 @@ func (s *DefaultSource) Parse() error {
 // SearchCategories sets the categories for the source
 // Only includes categories from the same domain as the source URL
 func (s *DefaultSource) SearchCategories() error {
+
 	// Simple implementation: extract categories from links on the homepage
 	if s.Doc == nil {
 		return fmt.Errorf("document not parsed")
@@ -213,23 +215,38 @@ func (s *DefaultSource) SearchCategories() error {
 
 // DownloadCategories downloads HTML for all categories
 func (s *DefaultSource) DownloadCategories() {
-	client := helpers.CreateHTTPClient(s.Config.RequestsParams.Timeout)
-	for i, cat := range s.Categories {
-		resp, err := client.Get(cat.URL)
-		if err != nil || resp.StatusCode >= 400 {
-			continue
-		}
 
-		htmlBytes, err := io.ReadAll(resp.Body)
-		if err != nil {
-			continue
+	var validCategories []newspaper.Category
+
+	for _, cat := range s.Categories {
+		err := s.downloadCategory(&cat)
+		if err == nil {
+			validCategories = append(validCategories, cat)
 		}
-		err = resp.Body.Close()
-		if err != nil {
-			continue
-		}
-		s.Categories[i].HTML = string(htmlBytes)
 	}
+
+	s.Categories = validCategories
+}
+
+// downloadCategories downloads HTML for all categories
+func (s *DefaultSource) downloadCategory(category *newspaper.Category) error {
+
+	client := helpers.CreateHTTPClient(s.Config.RequestsParams.Timeout)
+	resp, err := client.Get(category.URL)
+	if err != nil || resp.StatusCode >= 400 {
+		return fmt.Errorf("failed to get category")
+	}
+
+	htmlBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to get category body")
+	}
+	err = resp.Body.Close()
+	if err != nil {
+		return fmt.Errorf("failed to close category body")
+	}
+	category.HTML = string(htmlBytes)
+	return nil
 }
 
 // BuildCategories parses the HTML into goquery documents
@@ -285,7 +302,6 @@ func (s *DefaultSource) getCommonFeeds() []string {
 }
 
 func (s *DefaultSource) checkFeed(feedURL string) (string, bool, error) {
-	fmt.Println("Checking feed", feedURL)
 	client := helpers.CreateHTTPClient(s.Config.RequestsParams.Timeout)
 
 	resp, err := client.Get(feedURL)
@@ -307,6 +323,7 @@ func (s *DefaultSource) checkFeed(feedURL string) (string, bool, error) {
 }
 
 func (s *DefaultSource) GetFeedsWithParams(params BuildParams) {
+
 	commonFeedURLs := s.getCommonFeeds()
 
 	// Download and check feeds

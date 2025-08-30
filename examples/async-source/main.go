@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 
+	"github.com/tguidoux/newspaper4k-go/internal/helpers"
 	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
+	"github.com/tguidoux/newspaper4k-go/pkg/newspaper4k"
 	"github.com/tguidoux/newspaper4k-go/pkg/source"
 )
 
@@ -58,4 +60,15 @@ func main() {
 	fmt.Println("4. Getting articles:")
 	articles := src.GetArticles()
 	fmt.Printf("   Articles retrieved (not built): %d\n", len(articles))
+	extractors := newspaper4k.DefaultExtractors(config)
+
+	for _, article := range articles[:helpers.Min(len(articles), 100)] {
+		err := article.Build(extractors)
+		if err != nil {
+			fmt.Println("Failed to build article")
+		}
+
+		articleJSON, _ := article.ToJSON()
+		fmt.Println(articleJSON)
+	}
 }
