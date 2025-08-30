@@ -1,5 +1,18 @@
 # newspaper4k-go release notes
 
+## 2025-08-30 - v1.1.0
+
+### Added/Refactoring/Deprecation
+
+- Feat: enhance async source functionality with improved article building and category downloading
+- Refactor: simplify GetArticles method and update DefaultSource to use default parameters
+- Feat: implement DefaultSource struct and its methods for source handling
+- Refactor: rename package from mymodule to newspaper4kgo and remove unused Clone function and tests
+
+### Fixed/Improvements
+
+- Fix: update User-Agent header to reflect correct module version
+
 ## 2025-08-29 - v1.0.0
 
 ### Removed
