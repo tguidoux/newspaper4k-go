@@ -1,9 +1,8 @@
-// Package mymodule provides a template for Go modules. Simply clone this GitHub repository and start coding.
-package mymodule
+package newspaper4kgo
 
 const (
 	// Version holds the semantic version number of this module.
-	Version = "1.0.0"
+	Version = "0.2.0"
 )
 
 // This file contains module's metadata only, which is package level documentation and module Version string.

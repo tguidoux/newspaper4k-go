@@ -2,6 +2,9 @@ package configuration
 
 import (
 	"errors"
+	"fmt"
+
+	newspaper4kgo "github.com/tguidoux/newspaper4k-go"
 )
 
 // DownloadOptions contains options for downloading an article
@@ -20,6 +23,7 @@ type Configuration struct {
 	MaxSummary           int
 	MaxSummarySent       int
 	MaxFileMemo          int
+	MaxWorkers           int
 	TopImageSettings     TopImageSettings
 	MemorizeArticles     bool
 	DisableCategoryCache bool
@@ -37,6 +41,7 @@ type Configuration struct {
 	IgnoredContentTypes  map[string]string
 	UseCachedCategories  bool
 	DownloadOptions      DownloadOptions
+	MaxFeeds             int
 }
 
 // TopImageSettings holds settings for finding top image.
@@ -62,6 +67,8 @@ func NewConfiguration() *Configuration {
 		MaxTitle:             200,
 		MaxText:              100000,
 		MaxKeywords:          35,
+		MaxWorkers:           20,
+		MaxFeeds:             100,
 		MaxAuthors:           10,
 		MaxSummary:           5000,
 		MaxSummarySent:       5,
@@ -75,7 +82,7 @@ func NewConfiguration() *Configuration {
 		CleanArticleHTML:     true,
 		HTTPSuccessOnly:      true,
 		language:             "",
-		RequestsParams:       RequestsParams{Timeout: 7, Proxies: map[string]string{}, Headers: map[string]string{"User-Agent": "newspaper/0.0.1"}},
+		RequestsParams:       RequestsParams{Timeout: 30, Proxies: map[string]string{}, Headers: map[string]string{"User-Agent": fmt.Sprintf("newspaper4k-go/%s", newspaper4kgo.Version)}},
 		NumberThreads:        10,
 		Verbose:              false,
 		ThreadTimeoutSeconds: 10,
@@ -84,39 +91,6 @@ func NewConfiguration() *Configuration {
 		UseCachedCategories:  true,
 		DownloadOptions:      DownloadOptions{InputHTML: ""},
 	}
-}
-
-// Getters and setters for key properties
-func (c *Configuration) BrowserUserAgent() string {
-	return c.RequestsParams.Headers["User-Agent"]
-}
-
-func (c *Configuration) SetBrowserUserAgent(val string) {
-	c.RequestsParams.Headers["User-Agent"] = val
-}
-
-func (c *Configuration) Headers() map[string]string {
-	return c.RequestsParams.Headers
-}
-
-func (c *Configuration) SetHeaders(val map[string]string) {
-	c.RequestsParams.Headers = val
-}
-
-func (c *Configuration) RequestTimeout() int {
-	return c.RequestsParams.Timeout
-}
-
-func (c *Configuration) SetRequestTimeout(val int) {
-	c.RequestsParams.Timeout = val
-}
-
-func (c *Configuration) Proxies() map[string]string {
-	return c.RequestsParams.Proxies
-}
-
-func (c *Configuration) SetProxies(val map[string]string) {
-	c.RequestsParams.Proxies = val
 }
 
 func (c *Configuration) Language() string {

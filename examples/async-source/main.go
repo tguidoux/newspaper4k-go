@@ -3,17 +3,19 @@ package main
 import (
 	"fmt"
 
+	"github.com/tguidoux/newspaper4k-go/internal/helpers"
 	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
 	"github.com/tguidoux/newspaper4k-go/pkg/newspaper4k"
 	"github.com/tguidoux/newspaper4k-go/pkg/source"
 )
 
 func main() {
+
 	config := configuration.NewConfiguration()
 
 	// Example 1: Create a source
 	fmt.Println("1. Creating source")
-	src, err := source.NewDefaultSource(source.SourceRequest{URL: "https://www.lemonde.fr/", Config: *config})
+	src, err := source.NewAsyncSource(source.SourceRequest{URL: "https://www.lemonde.fr/", Config: *config})
 	if err != nil {
 		fmt.Printf("Error creating source: %v\n", err)
 		return
@@ -58,26 +60,15 @@ func main() {
 	fmt.Println("4. Getting articles:")
 	articles := src.GetArticles()
 	fmt.Printf("   Articles retrieved (not built): %d\n", len(articles))
-
-	fmt.Println("5. Show few articles:")
 	extractors := newspaper4k.DefaultExtractors(config)
 
-	for i, article := range articles {
-		if i >= 5 {
-			break
-		}
+	for _, article := range articles[:helpers.Min(len(articles), 100)] {
 		err := article.Build(extractors)
 		if err != nil {
-			fmt.Printf("Error building article: %v\n", err)
-			continue
+			fmt.Println("Failed to build article")
 		}
-		fmt.Printf("   %d. %s\n", i+1, article.Title)
-		fmt.Printf("      URL: %s\n", article.URL)
-		fmt.Printf("      Authors: %v\n", article.Authors)
-		fmt.Printf("      Text (first 200 chars): %.200s...\n", article.Text)
-		fmt.Printf("      Top Image: %v\n", article.TopImage)
-		fmt.Printf("      Keywords: %v\n", article.Keywords)
-		fmt.Printf("      Summary: %v\n", article.Summary)
-	}
 
+		articleJSON, _ := article.ToJSON()
+		fmt.Println(articleJSON)
+	}
 }

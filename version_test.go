@@ -1,4 +1,4 @@
-package mymodule
+package newspaper4kgo
 
 import (
 	"bufio"
