@@ -34,13 +34,7 @@ func NewStopWords(language string) (*StopWords, error) {
 
 	// Fallback to hardcoded English stop words if no stopwords found
 	if len(stopWords) == 0 {
-		englishStopWords := []string{
-			"the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of",
-			"with", "by", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had",
-			"do", "does", "did", "will", "would", "could", "should", "may", "might", "must", "can", "shall",
-			"this", "that", "these", "those", "i", "you", "he", "she", "it", "we", "they", "me",
-			"him", "her", "us", "them", "my", "your", "his", "its", "our", "their",
-		}
+		englishStopWords := text.StopwordsEN
 		for _, word := range englishStopWords {
 			stopWords[word] = true
 		}

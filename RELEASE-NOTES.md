@@ -1,5 +1,11 @@
 # newspaper4k-go release notes
 
+## 2025-09-01 - v1.2.0
+
+### Added/Refactoring/Deprecation
+
+- Refactor: replace hardcoded English stop words with text.StopwordsEN
+
 ## 2025-08-30 - v1.1.0
 
 ### Added/Refactoring/Deprecation
