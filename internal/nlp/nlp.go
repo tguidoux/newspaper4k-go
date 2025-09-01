@@ -6,17 +6,66 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/go-ego/gse"
 	"github.com/sugarme/tokenizer"
 	"github.com/sugarme/tokenizer/pretrained"
 	"github.com/tguidoux/newspaper4k-go/internal/resources/text"
 )
 
+// MultiSegmenter performs very lightweight multilingual tokenization without large external dependencies.
+// Strategy per language family:
+// - CJK (zh, ja, ko): split into individual runes while grouping contiguous ASCII alphanumerics.
+// - Other languages: fallback to whitespace splitting (StopWords may still use a model tokenizer afterwards).
+type MultiSegmenter struct{}
+
+// Segment tokenizes text given a language code (ISO 639-1 expected).
+func (m *MultiSegmenter) Segment(s, lang string) []string {
+	lang = strings.ToLower(lang)
+	switch lang {
+	case "zh", "ja", "ko":
+		return segmentCJK(s)
+	default:
+		// Simple whitespace split for non-CJK; higher-level logic may refine.
+		if s == "" {
+			return []string{}
+		}
+		return strings.Fields(s)
+	}
+}
+
+// segmentCJK splits CJK text into runes, grouping ASCII alphanumeric spans.
+func segmentCJK(s string) []string {
+	if s == "" {
+		return []string{}
+	}
+	tokens := make([]string, 0, len([]rune(s)))
+	var sb strings.Builder
+	flushASCII := func() {
+		if sb.Len() > 0 {
+			tokens = append(tokens, sb.String())
+			sb.Reset()
+		}
+	}
+	for _, r := range s {
+		switch {
+		case r <= 127 && (r == '_' || (r >= '0' && r <= '9') || (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z')):
+			sb.WriteRune(r)
+		case r == ' ' || r == '\n' || r == '\t' || r == '\r':
+			flushASCII()
+		default:
+			flushASCII()
+			tokens = append(tokens, string(r))
+		}
+	}
+	flushASCII()
+	return tokens
+}
+
 // StopWords represents a collection of stop words and a tokenizer for a language
 type StopWords struct {
 	StopWords map[string]bool
 	Tokenizer *tokenizer.Tokenizer
-	Gse       *gse.Segmenter
+	Language  string
+	MultiSeg  *MultiSegmenter
 }
 
 // NewStopWords creates a new StopWords instance for the given language
@@ -34,32 +83,20 @@ func NewStopWords(language string) (*StopWords, error) {
 
 	// Fallback to hardcoded English stop words if no stopwords found
 	if len(stopWords) == 0 {
-		englishStopWords := []string{
-			"the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for", "of",
-			"with", "by", "is", "are", "was", "were", "be", "been", "being", "have", "has", "had",
-			"do", "does", "did", "will", "would", "could", "should", "may", "might", "must", "can", "shall",
-			"this", "that", "these", "those", "i", "you", "he", "she", "it", "we", "they", "me",
-			"him", "her", "us", "them", "my", "your", "his", "its", "our", "their",
-		}
+		englishStopWords := text.StopwordsEN
 		for _, word := range englishStopWords {
 			stopWords[word] = true
 		}
 	}
 
-	// Initialize tokenizer - using BERT tokenizer as example
+	// Initialize tokenizer - using BERT tokenizer as example (works for many Latin-based languages)
 	tk := pretrained.BertBaseUncased()
-
-	// Initialize GSE for Chinese text
-	var gseSeg *gse.Segmenter
-	if language == "zh" {
-		gseSeg = new(gse.Segmenter)
-		_ = gseSeg.LoadDict()
-	}
 
 	return &StopWords{
 		StopWords: stopWords,
 		Tokenizer: tk,
-		Gse:       gseSeg,
+		Language:  language,
+		MultiSeg:  &MultiSegmenter{},
 	}, nil
 }
 
@@ -231,17 +268,18 @@ func GetStopWordsForLanguage(language string) []string {
 
 // Tokenize tokenizes the given text
 func (sw *StopWords) Tokenize(text string) []string {
-	if sw.Gse != nil {
-		// Use GSE for Chinese
-		return sw.Gse.Cut(text, true)
+	if sw.MultiSeg != nil {
+		// For CJK languages prefer MultiSegmenter minimal segmentation
+		lowerLang := strings.ToLower(sw.Language)
+		if lowerLang == "zh" || lowerLang == "ja" || lowerLang == "ko" {
+			return sw.MultiSeg.Segment(text, lowerLang)
+		}
 	}
-
-	// Use sugarme/tokenizer for other languages
+	// Use model tokenizer for non-CJK languages
 	encoded, err := sw.Tokenizer.EncodeSingle(text, true)
 	if err != nil {
-		return strings.Fields(text) // fallback to simple split
+		return strings.Fields(text) // fallback
 	}
-
 	return encoded.GetTokens()
 }
 
