@@ -1,13 +1,13 @@
 package nlp
 
 import (
+	"fmt"
 	"math"
 	"regexp"
 	"sort"
 	"strings"
 
 	"github.com/sugarme/tokenizer"
-	"github.com/sugarme/tokenizer/pretrained"
 	"github.com/tguidoux/newspaper4k-go/internal/resources/text"
 )
 
@@ -90,7 +90,10 @@ func NewStopWords(language string) (*StopWords, error) {
 	}
 
 	// Initialize tokenizer - using BERT tokenizer as example (works for many Latin-based languages)
-	tk := pretrained.BertBaseUncased()
+	tk, err := LocalBertBaseUncased()
+	if err != nil {
+		return nil, fmt.Errorf("creating Tokenizer failed: %v", err)
+	}
 
 	return &StopWords{
 		StopWords: stopWords,
