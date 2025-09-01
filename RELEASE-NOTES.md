@@ -1,5 +1,11 @@
 # newspaper4k-go release notes
 
+## 2025-09-01 - v1.4.0
+
+### Added/Refactoring/Deprecation
+
+- Feat: have bert tokenizer implemented locally
+
 ## 2025-09-01 - v1.3.0
 
 ### Added/Refactoring/Deprecation
