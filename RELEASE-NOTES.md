@@ -1,5 +1,11 @@
 # newspaper4k-go release notes
 
+## 2025-09-01 - v1.3.0
+
+### Added/Refactoring/Deprecation
+
+- Feat(nlp): implement MultiSegmenter for lightweight multilingual tokenization
+
 ## 2025-09-01 - v1.2.0
 
 ### Added/Refactoring/Deprecation
