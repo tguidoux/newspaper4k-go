@@ -2,7 +2,7 @@ package newspaper4kgo
 
 const (
 	// Version holds the semantic version number of this module.
-	Version = "1.1.2"
+	Version = "1.2.0"
 )
 
 // This file contains module's metadata only, which is package level documentation and module Version string.
