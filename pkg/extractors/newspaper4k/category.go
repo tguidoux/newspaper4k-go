@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/tguidoux/newspaper4k-go/internal/helpers"
 	"github.com/tguidoux/newspaper4k-go/internal/parsers"
 	"github.com/tguidoux/newspaper4k-go/internal/urls"
 	"github.com/tguidoux/newspaper4k-go/pkg/configuration"
@@ -125,6 +126,14 @@ func (ce *CategoryExtractor) parse(sourceURL string, doc *goquery.Document) []*u
 		return categoryURLs[i].String() < categoryURLs[j].String()
 	})
 	categoryURLs = slices.Compact(categoryURLs)
+
+	// Deduplicate
+	categoryURLs = helpers.UniqueStructByKey(
+		categoryURLs,
+		func(f *urls.URL) string { return f.String() },
+		helpers.UniqueOptions{CaseSensitive: true, PreserveOrder: false},
+	)
+
 	return categoryURLs
 }
 
