@@ -1,5 +1,11 @@
 # newspaper4k-go release notes
 
+## 2025-09-04 - v1.6.0
+
+### Added/Refactoring/Deprecation
+
+- Feat: add panic recovery to tokenizer with safe encoding function
+
 ## 2025-09-04 - v1.5.1
 
 ### Fixed/Improvements
