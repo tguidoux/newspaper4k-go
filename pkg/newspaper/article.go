@@ -803,7 +803,7 @@ func (a *Article) filterKeywords(keywordScores map[string]float64) map[string]fl
 
 	for keyword, score := range keywordScores {
 		cleaned := a.cleanKeyword(keyword)
-		if cleaned != "" && !a.isStopWord(cleaned, stopWords) {
+		if cleaned != "" && !a.isStopWord(cleaned, stopWords) && cleaned != "unk" && len(cleaned) > 3 {
 			// If multiple keywords map to the same cleaned version, keep the highest score
 			if existingScore, exists := filtered[cleaned]; !exists || score > existingScore {
 				filtered[cleaned] = score
