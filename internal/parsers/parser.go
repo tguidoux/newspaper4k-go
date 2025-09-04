@@ -239,7 +239,7 @@ func InnerTrim(text string) string {
 }
 
 // GetAttribute gets the unicode attribute of the node
-func GetAttribute(node *goquery.Selection, attr string, type_ interface{}, default_ interface{}) interface{} {
+func GetAttribute(node *goquery.Selection, attr string, type_ any, default_ any) any {
 	attrVal, exists := node.Attr(attr)
 	if !exists {
 		return default_
@@ -269,7 +269,7 @@ func GetAttribute(node *goquery.Selection, attr string, type_ interface{}, defau
 }
 
 // SetAttribute sets an attribute on the node
-func SetAttribute(node *goquery.Selection, attr string, value interface{}) {
+func SetAttribute(node *goquery.Selection, attr string, value any) {
 	var strValue string
 	switch v := value.(type) {
 	case string:
@@ -307,24 +307,24 @@ func OuterHTML(node *goquery.Selection) string {
 
 	return buf.String()
 } // GetLdJsonObject gets the JSON-LD object from the node
-func GetLdJsonObject(node *goquery.Selection) []map[string]interface{} {
-	var results []map[string]interface{}
+func GetLdJsonObject(node *goquery.Selection) []map[string]any {
+	var results []map[string]any
 
 	node.Find("script[type='application/ld+json']").Each(func(i int, s *goquery.Selection) {
 		jsonStr := s.Text()
-		var jsonData interface{}
+		var jsonData any
 		if err := json.Unmarshal([]byte(jsonStr), &jsonData); err != nil {
 			return
 		}
 
 		switch v := jsonData.(type) {
-		case []interface{}:
+		case []any:
 			for _, item := range v {
-				if obj, ok := item.(map[string]interface{}); ok {
+				if obj, ok := item.(map[string]any); ok {
 					results = append(results, obj)
 				}
 			}
-		case map[string]interface{}:
+		case map[string]any:
 			results = append(results, v)
 		}
 	})

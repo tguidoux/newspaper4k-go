@@ -69,13 +69,10 @@ func (ce *CategoryExtractor) parse(sourceURL string, doc *goquery.Document) []*u
 				continue
 			}
 
-			if parsedURL.Domain == "" {
-
-				parsedURL.Domain = parsedSourceURL.Domain
-				parsedURL.Scheme = parsedSourceURL.Scheme
-				parsedURL.TLD = parsedSourceURL.TLD
-				parsedURL.Subdomain = parsedSourceURL.Subdomain
+			if parsedURL.Domain == "" || parsedURL.TLD == "" {
+				continue
 			}
+
 			categoryCandidates = append(categoryCandidates, parsedURL)
 		}
 	}

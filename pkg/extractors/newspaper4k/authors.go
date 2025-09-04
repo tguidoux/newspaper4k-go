@@ -78,9 +78,9 @@ func (ae *AuthorsExtractor) extractFromJSONLD(doc *goquery.Document) []string {
 	for _, jsonData := range jsonObjects {
 		// Handle @graph structure
 		if graph, exists := jsonData["@graph"]; exists {
-			if graphArray, ok := graph.([]interface{}); ok {
+			if graphArray, ok := graph.([]any); ok {
 				for _, item := range graphArray {
-					if itemMap, ok := item.(map[string]interface{}); ok {
+					if itemMap, ok := item.(map[string]any); ok {
 						// Check for Person type
 						if itemType, exists := itemMap["@type"]; exists && itemType == "Person" {
 							if name, exists := itemMap["name"]; exists {
@@ -108,15 +108,15 @@ func (ae *AuthorsExtractor) extractFromJSONLD(doc *goquery.Document) []string {
 }
 
 // extractAuthorNames extracts author names from various JSON-LD structures
-func (ae *AuthorsExtractor) extractAuthorNames(author interface{}) []string {
+func (ae *AuthorsExtractor) extractAuthorNames(author any) []string {
 	names := []string{}
 
 	switch v := author.(type) {
 	case string:
 		names = append(names, v)
-	case []interface{}:
+	case []any:
 		for _, item := range v {
-			if itemMap, ok := item.(map[string]interface{}); ok {
+			if itemMap, ok := item.(map[string]any); ok {
 				if name, exists := itemMap["name"]; exists {
 					if nameStr, ok := name.(string); ok {
 						names = append(names, nameStr)
@@ -126,11 +126,11 @@ func (ae *AuthorsExtractor) extractAuthorNames(author interface{}) []string {
 				names = append(names, itemStr)
 			}
 		}
-	case map[string]interface{}:
+	case map[string]any:
 		if name, exists := v["name"]; exists {
 			if nameStr, ok := name.(string); ok {
 				names = append(names, nameStr)
-			} else if nameArray, ok := name.([]interface{}); ok {
+			} else if nameArray, ok := name.([]any); ok {
 				for _, n := range nameArray {
 					if nStr, ok := n.(string); ok {
 						names = append(names, nStr)

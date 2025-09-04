@@ -130,13 +130,13 @@ func (p *PubdateExtractor) parseWithDoc(articleURL string, doc *goquery.Document
 }
 
 // extractDateFromJSON extracts dates from JSON-LD data
-func (p *PubdateExtractor) extractDateFromJSON(data interface{}, dateMatches []DateMatch) []DateMatch {
+func (p *PubdateExtractor) extractDateFromJSON(data any, dateMatches []DateMatch) []DateMatch {
 	switch v := data.(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		if graph, ok := v["@graph"]; ok {
-			if graphSlice, ok := graph.([]interface{}); ok {
+			if graphSlice, ok := graph.([]any); ok {
 				for _, item := range graphSlice {
-					if itemMap, ok := item.(map[string]interface{}); ok {
+					if itemMap, ok := item.(map[string]any); ok {
 						dateMatches = p.extractDateFromMap(itemMap, dateMatches, 10)
 					}
 				}
@@ -144,9 +144,9 @@ func (p *PubdateExtractor) extractDateFromJSON(data interface{}, dateMatches []D
 		} else {
 			dateMatches = p.extractDateFromMap(v, dateMatches, 9)
 		}
-	case []interface{}:
+	case []any:
 		for _, item := range v {
-			if itemMap, ok := item.(map[string]interface{}); ok {
+			if itemMap, ok := item.(map[string]any); ok {
 				dateMatches = p.extractDateFromMap(itemMap, dateMatches, 9)
 			}
 		}
@@ -155,7 +155,7 @@ func (p *PubdateExtractor) extractDateFromJSON(data interface{}, dateMatches []D
 }
 
 // extractDateFromMap extracts dates from a map
-func (p *PubdateExtractor) extractDateFromMap(data map[string]interface{}, dateMatches []DateMatch, score int) []DateMatch {
+func (p *PubdateExtractor) extractDateFromMap(data map[string]any, dateMatches []DateMatch, score int) []DateMatch {
 	for _, key := range []string{"datePublished", "dateCreated"} {
 		if dateStr, ok := data[key]; ok {
 			if str, ok := dateStr.(string); ok {
