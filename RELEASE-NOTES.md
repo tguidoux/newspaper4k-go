@@ -1,5 +1,11 @@
 # newspaper4k-go release notes
 
+## 2025-09-04 - v1.5.1
+
+### Fixed/Improvements
+
+- Fix: deduplicate category URLs using helper function
+
 ## 2025-09-04 - v1.5.0
 
 ### Added/Refactoring/Deprecation
