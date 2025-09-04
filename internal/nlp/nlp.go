@@ -269,6 +269,26 @@ func GetStopWordsForLanguage(language string) []string {
 	}
 }
 
+// safeTokenizerEncode wraps the underlying tokenizer call with panic recovery.
+// If the third-party tokenizer panics (which has been observed in some edge cases),
+// this function converts it into an error so callers can gracefully fallback.
+func safeTokenizerEncode(tk *tokenizer.Tokenizer, text string) (tokens []string, err error) {
+	if tk == nil {
+		return nil, fmt.Errorf("nil tokenizer")
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("tokenizer panic: %v", r)
+			tokens = nil
+		}
+	}()
+	encoded, e := tk.EncodeSingle(text, true)
+	if e != nil {
+		return nil, e
+	}
+	return encoded.GetTokens(), nil
+}
+
 // Tokenize tokenizes the given text
 func (sw *StopWords) Tokenize(text string) []string {
 	if sw.MultiSeg != nil {
@@ -278,12 +298,16 @@ func (sw *StopWords) Tokenize(text string) []string {
 			return sw.MultiSeg.Segment(text, lowerLang)
 		}
 	}
-	// Use model tokenizer for non-CJK languages
-	encoded, err := sw.Tokenizer.EncodeSingle(text, true)
-	if err != nil {
-		return strings.Fields(text) // fallback
+	// Use model tokenizer for non-CJK languages (panic-safe)
+	tokens, err := safeTokenizerEncode(sw.Tokenizer, text)
+	if err != nil || len(tokens) == 0 {
+		// Graceful fallback: try multi segmenter if available, else whitespace split
+		if sw.MultiSeg != nil {
+			return sw.MultiSeg.Segment(text, strings.ToLower(sw.Language))
+		}
+		return strings.Fields(text)
 	}
-	return encoded.GetTokens()
+	return tokens
 }
 
 // Keywords gets the top keywords and their frequency scores
