@@ -112,7 +112,6 @@ func (xe *IOCsExtractor) Parse(a *newspaper.Article) error {
 	a.Domains = helpers.UniqueStrings(domains, helpers.UniqueOptions{CaseSensitive: false, PreserveOrder: true})
 	a.IPv4s = helpers.UniqueStrings(ipv4s, helpers.UniqueOptions{CaseSensitive: false, PreserveOrder: true})
 	a.IPv6s = helpers.UniqueStrings(ipv6s, helpers.UniqueOptions{CaseSensitive: false, PreserveOrder: true})
-	a.Files = helpers.UniqueStrings(files, helpers.UniqueOptions{CaseSensitive: false, PreserveOrder: true})
 	a.Bitcoins = helpers.UniqueStrings(bitcoins, helpers.UniqueOptions{CaseSensitive: false, PreserveOrder: true})
 	a.MD5s = helpers.UniqueStrings(md5s, helpers.UniqueOptions{CaseSensitive: false, PreserveOrder: true})
 	a.SHA1s = helpers.UniqueStrings(sha1s, helpers.UniqueOptions{CaseSensitive: false, PreserveOrder: true})
@@ -155,7 +154,36 @@ func (xe *IOCsExtractor) Parse(a *newspaper.Article) error {
 	}
 
 	// Combine and deduplicate all URLs
-	a.OtherURLs = helpers.UniqueStrings(append(urls, otherurls...), helpers.UniqueOptions{CaseSensitive: false, PreserveOrder: true})
+	allURLs := append(urls, otherurls...)
+	a.OtherURLs = helpers.UniqueStrings(allURLs, helpers.UniqueOptions{CaseSensitive: false, PreserveOrder: true})
+
+	// Enrich file IOCs: if we only captured a bare filename, try to find a full URL
+	// from the collected URL set that ends with that filename. If found, replace
+	// the entry with the full URL. Otherwise keep the original filename.
+	rawFiles := helpers.UniqueStrings(files, helpers.UniqueOptions{CaseSensitive: false, PreserveOrder: true})
+	enrichedFiles := make([]string, 0, len(rawFiles))
+	for _, f := range rawFiles {
+		// If it already looks like a URL, keep as-is
+		if strings.Contains(f, "://") {
+			enrichedFiles = append(enrichedFiles, f)
+			continue
+		}
+
+		full := ""
+		for _, u := range allURLs {
+			if strings.HasSuffix(u, "/"+f) || strings.HasSuffix(u, f) { // second clause covers exact end match
+				full = u
+				break
+			}
+		}
+		// Only replace if we actually found a matching URL; otherwise retain the filename
+		if full != "" {
+			enrichedFiles = append(enrichedFiles, full)
+		} else {
+			enrichedFiles = append(enrichedFiles, f)
+		}
+	}
+	a.Files = enrichedFiles
 
 	return nil
 }
