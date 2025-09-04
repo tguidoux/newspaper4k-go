@@ -1,5 +1,18 @@
 # newspaper4k-go release notes
 
+## 2025-09-04 - v1.5.0
+
+### Added/Refactoring/Deprecation
+
+- Refactor: replace interface{} with any for improved type safety
+
+### Fixed/Improvements
+
+- Fix: enrich file IOCs with full URLs when available and remove duplicate file entries
+- Fix: update SourceURL assignment to use ParsedURL for consistency
+- Fix: validate category URLs to ensure host, TLD, and domain are present
+- Fix: enhance keyword filtering to exclude unk and enforce minimum length
+
 ## 2025-09-01 - v1.4.0
 
 ### Added/Refactoring/Deprecation
