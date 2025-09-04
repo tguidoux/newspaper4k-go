@@ -461,7 +461,7 @@ func (s *DefaultSource) feedsToArticles() []newspaper.Article {
 				if parsedArticleURL.Domain == s.ParsedURL.Domain && parsedArticleURL.String() != parsedFeedURL.String() {
 					article := newspaper.Article{
 						URL:       articleURL,
-						SourceURL: feed.URL,
+						SourceURL: s.ParsedURL.String(),
 						Config:    s.Config,
 					}
 					articles = append(articles, article)
@@ -535,7 +535,7 @@ func (s *DefaultSource) categoriesToArticles() []newspaper.Article {
 						title := sel.Text()
 						article := newspaper.Article{
 							URL:       articleURL,
-							SourceURL: cat.URL,
+							SourceURL: s.ParsedURL.String(),
 							Title:     title,
 							Config:    s.Config,
 						}
