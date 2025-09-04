@@ -668,7 +668,7 @@ func (a *Article) ToFullJSON() (string, error) {
 	}
 
 	// Format publish date
-	var publishDate interface{}
+	var publishDate any
 	if a.PublishDate != nil {
 		publishDate = a.PublishDate.Format(time.RFC3339)
 	} else {
@@ -676,7 +676,7 @@ func (a *Article) ToFullJSON() (string, error) {
 	}
 
 	// Build a full map containing all Article fields (serialized)
-	articleData := map[string]interface{}{
+	articleData := map[string]any{
 		"source_url":       a.SourceURL,
 		"url":              a.URL,
 		"title":            a.Title,
@@ -737,7 +737,7 @@ func (a *Article) ToJSON() (string, error) {
 	}
 
 	// Build a simplified map containing key Article fields
-	articleData := map[string]interface{}{
+	articleData := map[string]any{
 		"title":            a.Title,
 		"url":              a.URL,
 		"authors":          a.Authors,
@@ -803,7 +803,7 @@ func (a *Article) filterKeywords(keywordScores map[string]float64) map[string]fl
 
 	for keyword, score := range keywordScores {
 		cleaned := a.cleanKeyword(keyword)
-		if cleaned != "" && !a.isStopWord(cleaned, stopWords) {
+		if cleaned != "" && !a.isStopWord(cleaned, stopWords) && cleaned != "unk" && len(cleaned) > 3 {
 			// If multiple keywords map to the same cleaned version, keep the highest score
 			if existingScore, exists := filtered[cleaned]; !exists || score > existingScore {
 				filtered[cleaned] = score

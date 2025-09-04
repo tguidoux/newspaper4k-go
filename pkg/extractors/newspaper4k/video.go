@@ -102,12 +102,12 @@ func (ve *VideoExtractor) getVideosFromJSONLD(doc *goquery.Document, articleURL 
 
 	for _, data := range jsonObjects {
 		// Handle both single object and array of objects
-		var objects []map[string]interface{}
+		var objects []map[string]any
 		if obj, ok := data["@type"]; ok && obj == "VideoObject" {
-			objects = []map[string]interface{}{data}
-		} else if graph, ok := data["@graph"].([]interface{}); ok {
+			objects = []map[string]any{data}
+		} else if graph, ok := data["@graph"].([]any); ok {
 			for _, item := range graph {
-				if obj, ok := item.(map[string]interface{}); ok {
+				if obj, ok := item.(map[string]any); ok {
 					if objType, ok := obj["@type"]; ok && objType == "VideoObject" {
 						objects = append(objects, obj)
 					}

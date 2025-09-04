@@ -27,6 +27,10 @@ func IsValidCategoryURL(urlStr string) bool {
 		return false
 	}
 
+	if parsedURL.Host == "" || parsedURL.TLD == "" || parsedURL.Domain == "" {
+		return false
+	}
+
 	// Remove any URL that starts with #
 	if strings.HasPrefix(parsedURL.Path, "#") {
 		return false
