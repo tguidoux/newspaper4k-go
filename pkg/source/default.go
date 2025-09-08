@@ -3,6 +3,7 @@ package source
 import (
 	"fmt"
 	"io"
+	"math/rand/v2"
 	"net/url"
 	"regexp"
 	"strings"
@@ -579,6 +580,12 @@ func (s *DefaultSource) GetArticlesWithParams(params BuildParams) []newspaper.Ar
 			}
 		}
 		uniqueArticles = filteredArticles
+	}
+
+	if params.Shuffle {
+		rand.Shuffle(len(uniqueArticles), func(i, j int) {
+			uniqueArticles[i], uniqueArticles[j] = uniqueArticles[j], uniqueArticles[i]
+		})
 	}
 
 	if params.LimitArticles > 0 && len(uniqueArticles) > params.LimitArticles {

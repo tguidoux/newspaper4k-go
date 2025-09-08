@@ -1,5 +1,12 @@
 # newspaper4k-go release notes
 
+## 2025-09-08 - v1.7.0
+
+### Added/Refactoring/Deprecation
+
+- Feat: enhance language regex handling with Unicode support
+- Feat: add shuffle option to BuildParams and implement shuffling of articles
+
 ## 2025-09-04 - v1.6.0
 
 ### Added/Refactoring/Deprecation

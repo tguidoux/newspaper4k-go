@@ -29,6 +29,7 @@ type BuildParams struct {
 	AllowSubDomain  bool
 	LimitCategories int
 	LimitArticles   int
+	Shuffle         bool
 }
 
 func DefaultBuildParams() BuildParams {
@@ -39,5 +40,6 @@ func DefaultBuildParams() BuildParams {
 		AllowSubDomain:  true,
 		LimitCategories: 100,
 		LimitArticles:   1000,
+		Shuffle:         false,
 	}
 }
