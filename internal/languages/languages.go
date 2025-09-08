@@ -1,10 +1,34 @@
 package languages
 
 import (
+	"regexp"
+	"strconv"
 	"strings"
 
 	"golang.org/x/text/language"
 )
+
+// convertUnicodeEscapes converts Unicode escape sequences like \u0400 to actual Unicode characters
+func convertUnicodeEscapes(s string) string {
+	// Regular expression to match \u followed by exactly 4 hexadecimal digits
+	re := regexp.MustCompile(`\\u([0-9a-fA-F]{4})`)
+
+	// Replace all matches with the corresponding Unicode character
+	result := re.ReplaceAllStringFunc(s, func(match string) string {
+		// Extract the hex part (skip the \u)
+		hexStr := match[2:]
+		// Convert hex to int
+		codePoint, err := strconv.ParseInt(hexStr, 16, 32)
+		if err != nil {
+			// If parsing fails, return the original match
+			return match
+		}
+		// Convert to Unicode character
+		return string(rune(codePoint))
+	})
+
+	return result
+}
 
 // LanguageTuple represents a language with its ISO code and name
 type LanguageTuple struct {
@@ -341,4 +365,13 @@ func LanguageRegex(tag language.Tag) string {
 
 	// Default to Latin-range characters
 	return `a-zA-Z0-9\s`
+}
+
+// LanguageRegexPattern returns a regex pattern with Unicode escapes converted to actual characters
+// This is meant for use in regexp compilation
+func LanguageRegexPattern(tag language.Tag) string {
+	// Get the raw pattern from LanguageRegex
+	pattern := LanguageRegex(tag)
+	// Convert Unicode escapes to actual Unicode characters
+	return convertUnicodeEscapes(pattern)
 }
