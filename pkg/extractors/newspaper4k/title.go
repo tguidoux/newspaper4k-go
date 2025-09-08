@@ -72,7 +72,7 @@ func (te *TitleExtractor) Parse(a *newspaper.Article) error {
 
 	}
 
-	regexChars := languages.LanguageRegex(langTag)
+	regexChars := languages.LanguageRegexPattern(langTag)
 	filterRegex := regexp.MustCompile("[^" + regexChars + "]")
 	filterTitleText := filterRegex.ReplaceAllString(strings.ToLower(titleText), "")
 	filterTitleTextH1 := filterRegex.ReplaceAllString(strings.ToLower(titleTextH1), "")
