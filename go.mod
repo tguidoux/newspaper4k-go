@@ -3,12 +3,12 @@ module github.com/tguidoux/newspaper4k-go
 go 1.24.0
 
 require (
-	github.com/PuerkitoBio/goquery v1.10.3
+	github.com/PuerkitoBio/goquery v1.11.0
 	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de
 	github.com/btnguyen2k/consu/semver v0.2.1
 	github.com/stretchr/testify v1.11.1
 	github.com/sugarme/tokenizer v0.3.0
-	golang.org/x/net v0.46.0
+	golang.org/x/net v0.47.0
 	golang.org/x/text v0.31.0
 )
 
