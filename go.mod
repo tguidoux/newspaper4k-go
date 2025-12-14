@@ -8,7 +8,7 @@ require (
 	github.com/btnguyen2k/consu/semver v0.2.1
 	github.com/stretchr/testify v1.11.1
 	github.com/sugarme/tokenizer v0.3.0
-	golang.org/x/net v0.47.0
+	golang.org/x/net v0.48.0
 	golang.org/x/text v0.32.0
 )
 
