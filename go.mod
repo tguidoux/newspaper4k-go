@@ -1,15 +1,15 @@
 module github.com/tguidoux/newspaper4k-go
 
-go 1.24.0
+go 1.25.0
 
 require (
-	github.com/PuerkitoBio/goquery v1.11.0
+	github.com/PuerkitoBio/goquery v1.12.0
 	github.com/araddon/dateparse v0.0.0-20210429162001-6b43995a97de
 	github.com/btnguyen2k/consu/semver v0.2.1
 	github.com/stretchr/testify v1.11.1
 	github.com/sugarme/tokenizer v0.3.0
-	golang.org/x/net v0.50.0
-	golang.org/x/text v0.34.0
+	golang.org/x/net v0.52.0
+	golang.org/x/text v0.35.0
 )
 
 require (
